@@ -1,16 +1,19 @@
 import os
+from heddy.ai_backend.zapier_manager import ZapierManager
 from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus
 from heddy.io.sound_effects_player import AudioPlayer
+from heddy.speech_to_text.faster_whisper_transcriber import WhisperTranscriber
 from heddy.speech_to_text.stt_manager import STTManager
 from heddy.text_to_speech.text_to_speach_manager import TTSManager
 from heddy.word_detector import WordDetector
 from heddy.io.audio_recorder import start_recording, stop_recording
 from heddy.speech_to_text.assemblyai_transcriber import AssemblyAITranscriber
-from heddy.ai_backend.assistant_manager import ThreadManager, StreamingManager
+from heddy.ai_backend.assistant_manager import AssistantResultStatus, AssitsantResult, ThreadManager, StreamingManager
 from heddy.text_to_speech.eleven_labs import ElevenLabsManager
 from heddy.vision_module import VisionModule
 import openai
 from dotenv import load_dotenv
+import argparse
 
 
 class MainController:
@@ -73,12 +76,12 @@ class MainController:
             return self.transcriber.transcribe_audio_file(event)
         if event.type == ApplicationEventType.GET_SNAPSHOT:
             return self.get_snapshot(event)
-        if event.type == ApplicationEventType.AI_INTERACT:
+        if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
             return self.assistant.handle_streaming_interaction(event)
+        if event.type == ApplicationEventType.ZAPIER:
+            return ZapierManager().handle_message(event)
 
     def process_result(self, event: ApplicationEvent):
-        if event.status == ProcessingStatus.ERROR:
-            raise RuntimeError(event.error)
         if event.status == ProcessingStatus.INIT:
             return event
         if event.type == ApplicationEventType.SYNTHESIZE:
@@ -105,24 +108,47 @@ class MainController:
                 request=event.result
             )
         if event.type == ApplicationEventType.GET_SNAPSHOT:
+            self.picture_mode = False
             print(f"Snapshot Result: '{event.result}'")
             return ApplicationEvent(
                 type=ApplicationEventType.AI_INTERACT,
                 request=event.result
             )
-        if event.type == ApplicationEventType.AI_INTERACT:
-            print(f"Assistant Response: '{event.result}'")
+        if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
+            return self.handle_ai_result(event.result)
+            
+        
+    def handle_ai_result(self, result: AssitsantResult):
+        if result.status == AssistantResultStatus.SUCCESS:
+            print(f"Assistant Response: '{result}'")
             return ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
-                request=event.result
+                request=result.response
             )
+        elif result.status == AssistantResultStatus.ACTION_REQUIED:
+            tool_calls = result.calls["tools"]
+            for tool_call in tool_calls:
+                event = self.run(event=ApplicationEvent(
+                    type=tool_call["type"],
+                    request=tool_call["args"]
+                ), process_result=self.process_func_trigger)
+                tool_call["output"] = event.result
+            return ApplicationEvent(
+                type=ApplicationEventType.AI_TOOL_RETURN,
+                request=result.calls
+            )
+        else:
+            raise NotImplemented(f"{result=}")
+    
+    def process_func_trigger(self, event: ApplicationEvent):
+        return ApplicationEvent(
+            type=ApplicationEventType.EXIT,
+            result=event.result
+        )
     
     def get_snapshot(self, event: ApplicationEvent):
         # TODO: move to vision module logic
-        self.picture_mode = False
-        self.vision_module.capture_image_async()
-        event.status = ProcessingStatus.SUCCESS
-        event.result = self.vision_module.describe_captured_image(event.request)
+        event.result = self.vision_module.get_description_of_camera_view(event.request)
         return event
 
     # TODO: move to an interaction manager(?) module
@@ -153,16 +179,23 @@ class MainController:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
         return ApplicationEvent(ApplicationEventType.LISTEN)
     
-    def run(self, event: ApplicationEvent):
+    def run(self, event: ApplicationEvent, process_result=None) -> ApplicationEvent:
+        process_result = process_result or self.process_result
         current_event = event
         while current_event.type != ApplicationEventType.EXIT:
             print(current_event.type)
             if current_event.type == ApplicationEventType.START:
                 self.audio_player.play_sound("listening.wav")  # Play start listening sound
             result = self.process_event(current_event)
-            current_event = self.process_result(result)
 
-def initialize():
+            if event.status == ProcessingStatus.ERROR:
+                raise RuntimeError(event.error)
+            
+            current_event = process_result(result)
+        return current_event
+        
+
+def initialize(args):
     load_dotenv()
     print("System initializing...")
     # Initialize OpenAI client ok computer send a little zapier tick please reply
@@ -170,9 +203,13 @@ def initialize():
         api_key=os.getenv("OPENAI_API_KEY")
     ) # This line initializes openai_client with the openai library itself
 
-    # Initialize modules with provided API keys
-    assemblyai_transcriber = AssemblyAITranscriber(api_key=os.getenv("ASSEMBLYAI_API_KEY"))
 
+    # Initialize modules with provided API keys
+    if args.transcriber.lower() == "whisper":
+        transcriber = WhisperTranscriber() 
+    if args.transcriber.lower() == "assemblyai":
+        transcriber = AssemblyAITranscriber(api_key=os.getenv("ASSEMBLYAI_API_KEY"))
+    
     # Adjusted to use the hardcoded Assistant ID
     eleven_labs_manager = ElevenLabsManager(api_key=os.getenv("ELEVENLABS_API_KEY"))
     vision_module = VisionModule(openai_api_key=os.getenv("OPENAI_API_KEY"))
@@ -184,13 +221,19 @@ def initialize():
     word_detector = WordDetector()
     return MainController(
         assistant=streaming_manager,
-        transcriber=STTManager(transcriber=assemblyai_transcriber),
+        transcriber=STTManager(transcriber=transcriber),
         vision_module=vision_module,
         audio_player=AudioPlayer(),
         word_detector=word_detector,
         synthesizer=TTSManager(eleven_labs_manager)
     )
 
+def parse_cli_args(argv=None):
+    parser = argparse.ArgumentParser("heddy")
+    parser.add_argument("--transcriber", type=str, default="assemblyai")
+    return parser.parse_args(argv)
+
 if __name__ == "__main__":
-    main = initialize()
+    args = parse_cli_args()
+    main = initialize(args)
     main.run(ApplicationEvent(ApplicationEventType.START))
