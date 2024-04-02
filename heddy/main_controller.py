@@ -1,4 +1,5 @@
 import os
+from heddy.ai_backend.zapier_manager import ZapierManager
 from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus
 from heddy.io.sound_effects_player import AudioPlayer
 from heddy.speech_to_text.stt_manager import STTManager
@@ -6,7 +7,7 @@ from heddy.text_to_speech.text_to_speach_manager import TTSManager
 from heddy.word_detector import WordDetector
 from heddy.io.audio_recorder import start_recording, stop_recording
 from heddy.speech_to_text.assemblyai_transcriber import AssemblyAITranscriber
-from heddy.ai_backend.assistant_manager import ThreadManager, StreamingManager
+from heddy.ai_backend.assistant_manager import AssistantResultStatus, AssitsantResult, ThreadManager, StreamingManager
 from heddy.text_to_speech.eleven_labs import ElevenLabsManager
 from heddy.vision_module import VisionModule
 import openai
@@ -73,12 +74,12 @@ class MainController:
             return self.transcriber.transcribe_audio_file(event)
         if event.type == ApplicationEventType.GET_SNAPSHOT:
             return self.get_snapshot(event)
-        if event.type == ApplicationEventType.AI_INTERACT:
+        if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
             return self.assistant.handle_streaming_interaction(event)
+        if event.type == ApplicationEventType.ZAPIER:
+            return ZapierManager().handle_message(event)
 
     def process_result(self, event: ApplicationEvent):
-        if event.status == ProcessingStatus.ERROR:
-            raise RuntimeError(event.error)
         if event.status == ProcessingStatus.INIT:
             return event
         if event.type == ApplicationEventType.SYNTHESIZE:
@@ -105,24 +106,47 @@ class MainController:
                 request=event.result
             )
         if event.type == ApplicationEventType.GET_SNAPSHOT:
+            self.picture_mode = False
             print(f"Snapshot Result: '{event.result}'")
             return ApplicationEvent(
                 type=ApplicationEventType.AI_INTERACT,
                 request=event.result
             )
-        if event.type == ApplicationEventType.AI_INTERACT:
-            print(f"Assistant Response: '{event.result}'")
+        if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
+            return self.handle_ai_result(event.result)
+            
+        
+    def handle_ai_result(self, result: AssitsantResult):
+        if result.status == AssistantResultStatus.SUCCESS:
+            print(f"Assistant Response: '{result}'")
             return ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
-                request=event.result
+                request=result.response
             )
+        elif result.status == AssistantResultStatus.ACTION_REQUIED:
+            tool_calls = result.calls["tools"]
+            for tool_call in tool_calls:
+                event = self.run(event=ApplicationEvent(
+                    type=tool_call["type"],
+                    request=tool_call["args"]
+                ), process_result=self.process_func_trigger)
+                tool_call["output"] = event.result
+            return ApplicationEvent(
+                type=ApplicationEventType.AI_TOOL_RETURN,
+                request=result.calls
+            )
+        else:
+            raise NotImplemented(f"{result=}")
+    
+    def process_func_trigger(self, event: ApplicationEvent):
+        return ApplicationEvent(
+            type=ApplicationEventType.EXIT,
+            result=event.result
+        )
     
     def get_snapshot(self, event: ApplicationEvent):
         # TODO: move to vision module logic
-        self.picture_mode = False
-        self.vision_module.capture_image_async()
-        event.status = ProcessingStatus.SUCCESS
-        event.result = self.vision_module.describe_captured_image(event.request)
+        event.result = self.vision_module.get_description_of_camera_view(event.request)
         return event
 
     # TODO: move to an interaction manager(?) module
@@ -153,14 +177,21 @@ class MainController:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
         return ApplicationEvent(ApplicationEventType.LISTEN)
     
-    def run(self, event: ApplicationEvent):
+    def run(self, event: ApplicationEvent, process_result=None) -> ApplicationEvent:
+        process_result = process_result or self.process_result
         current_event = event
         while current_event.type != ApplicationEventType.EXIT:
             print(current_event.type)
             if current_event.type == ApplicationEventType.START:
                 self.audio_player.play_sound("listening.wav")  # Play start listening sound
             result = self.process_event(current_event)
-            current_event = self.process_result(result)
+
+            if event.status == ProcessingStatus.ERROR:
+                raise RuntimeError(event.error)
+            
+            current_event = process_result(result)
+        return current_event
+        
 
 def initialize():
     load_dotenv()

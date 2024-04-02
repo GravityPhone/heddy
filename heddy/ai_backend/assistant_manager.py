@@ -1,12 +1,12 @@
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 import openai
 import time
 import threading
 import requests
 import json
 import logging
-from heddy.application_event import ApplicationEvent, ProcessingStatus
+from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus
 from heddy.state_manager import StateManager
 from openai.lib.streaming import AssistantEventHandler
 from openai.types.beta import Assistant, Thread
@@ -22,93 +22,19 @@ from heddy.vision_module import VisionModule
 class AssistantResultStatus(Enum):
     SUCCESS = 1
     ERROR = -1
+    ACTION_REQUIED = 2 
+
+class AvailableActions(Enum):
+    ZAPIER=1
+    PICTURE=2
+
 
 @dataclass
 class AssitsantResult:
-    text: Optional[str]
-    error: Optional[str]
     status: AssistantResultStatus
-
-
-class EventHandler(AssistantEventHandler):
-    
-    def on_text_created(self, text: str) -> None:
-        print(f"\nassistant > ", end="", flush=True)
-
-    def on_text_delta(self, delta, snapshot):
-        # Access the delta attribute correctly
-        if 'content' in delta:
-            for content_change in delta['content']:
-                if content_change['type'] == 'text':
-                    print(content_change['text']['value'], end="", flush=True)
-                    if 'annotations' in content_change['text']:
-                        print("Annotations:", content_change['text']['annotations'])
-
-    def on_tool_call_created(self, run):
-        print("\nassistant > Processing tool call\n", flush=True)
-        # Check if the run requires action and has the submit_tool_outputs type
-        if run.required_action.type == 'submit_tool_outputs':
-            # Iterate over each tool call in the tool_calls list
-            for tool_call in run.required_action.submit_tool_outputs.tool_calls:
-                # Check if the tool call is of type function and is the expected function
-                if tool_call.type == 'function' and tool_call.function.name == 'textzapier':
-                    # Parse the JSON string in arguments to a Python dictionary
-                    arguments = json.loads(tool_call.function.arguments)
-                    text_to_send = arguments['text']
-                    self.send_text_via_zapier(text_to_send, tool_call.id)
-
-    def send_text_via_zapier(self, text: str, tool_call_id: str):
-        webhook_url = "https://hooks.zapier.com/hooks/catch/82343/19816978ac224264aa3eec6c8c911e10/"
-        payload = {"text": text}
-        try:
-            response = requests.post(webhook_url, json=payload)
-            if response.status_code == 200:
-                logging.info("Text sent successfully via Zapier.")
-                self.submit_tool_output(tool_call_id, True)
-            else:
-                logging.error(f"Failed to send text via Zapier. Status code: {response.status_code}, Response: {response.text}")
-                self.submit_tool_output(tool_call_id, False)
-        except Exception as e:
-            logging.exception("Exception occurred while sending text via Zapier.")
-            self.submit_tool_output(tool_call_id, False)
-
-    def submit_tool_output(self, tool_call_id: str, success: bool):
-        output_status = "Success" if success else "Failure"
-        # Implement the logic to submit the tool output back to the thread run
-        # This might involve calling a method from the OpenAI API client
-        print(f"Tool output submitted: {output_status}")
-
-    def on_tool_call_delta(self, delta: RequiredActionFunctionToolCall, snapshot: RequiredActionFunctionToolCall):
-        if delta.type == 'code_interpreter':
-            if delta.code_interpreter.input:
-                print(delta.code_interpreter.input, end="", flush=True)
-            if delta.code_interpreter.outputs:
-                print(f"\n\noutput >", flush=True)
-                for output in delta.code_interpreter.outputs:
-                    if output.type == "logs":
-                        print(f"\n{output.logs}", flush=True)
-
-
-
-def tool_call_zapier(arguments):
-    webhook_url = "https://hooks.zapier.com/hooks/catch/82343/19816978ac224264aa3eec6c8c911e10/"
-    
-    # Parse the arguments as JSON if it's a string
-    if isinstance(arguments, str):
-        arguments = json.loads(arguments)
-    
-    # Access the 'message' key instead of 'text'
-    text_to_send = arguments.get('message', '')  # Default to empty string if 'message' not found
-    
-    payload = {"text": text_to_send}
-    try:
-        response = requests.post(webhook_url, json=payload)
-        if response.status_code == 200:
-            return "Success!"
-        else:
-            return f"Failed with status code: {response.status_code}"
-    except Exception as e:
-        return f"Exception occurred: {str(e)}"
+    response: Optional[str] = ""
+    calls: Optional[Any] = None
+    error: Optional[str] = ""
     
 def retrieve_image_description(arguments):
     # Parse the arguments as JSON if it's a string
@@ -216,70 +142,78 @@ class StreamingManager:
     def set_event_handler(self, event_handler):
         self.event_handler = event_handler
     
-    def handle_required_action(self, event):
+    def func_name_to_application_event(self, func):
+        if func.name == "send_text_message":
+            return ApplicationEventType.ZAPIER
+        elif func.name == "send_image_description":
+            return ApplicationEventType.GET_SNAPSHOT
+        else:
+            raise NotImplementedError(f"{func.name=}")
+
+    def resolve_calls(self, event):
         data = event.data
         action = data.required_action
         if action.type == "submit_tool_outputs":
-            calls = action.submit_tool_outputs.tool_calls
-            outputs = []
-            for call in calls:
+            _tool_calls = action.submit_tool_outputs.tool_calls
+            tool_calls = []
+            for call in _tool_calls:
                 func = call.function
-                if func.name == "send_text_message":
-                    output = tool_call_zapier(func.arguments)
-                    outputs.append({
-                        "output": output,
-                        "tool_call_id": call.id
-                    })
-                elif func.name == "send_image_description":
-                    output = retrieve_image_description(func.arguments)
-                    outputs.append({
-                        "output": output,
-                        "tool_call_id": call.id
-                    })
-                else:
-                    raise NotImplementedError(f"{func.name=}")
+                tool_calls.append({
+                    "type": self.func_name_to_application_event(func),
+                    "args": func.arguments,
+                    "tool_call_id": call.id
+                })
             
-            return openai.beta.threads.runs.submit_tool_outputs_stream(
-                tool_outputs=outputs,
-                run_id=data.id,
-                thread_id=data.thread_id
-            )
+            # TODO: change to object
+            return {
+                "tools": tool_calls,
+                "run_id": data.id,
+                "thread_id": data.thread_id
+            }
         raise NotImplementedError(f"{action.type=}")
-            
     
-    def handle_stream(self,):
-        text = ""
-        streaming_manager = openai.beta.threads.runs.create_and_stream(
-                thread_id=self.thread_manager.thread_id,
-                assistant_id=self.assistant_id,
-            )
-        while True:
-            with streaming_manager as stream:
-                for event in stream:
-                    if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
-                        delta = event.data.delta.content[0].text.value
-                        text +=  delta if delta is not None else ""
-                        continue
-                    if isinstance(event, ThreadRunStepDelta):
-                        continue
-                    
-                    print("Event received:", event)
-                    if isinstance(event, ThreadRunRequiresAction):
-                        streaming_manager = self.handle_required_action(event)
-                        break
-                    if isinstance(event, ThreadRunCompleted):
-                        print("\nInteraction completed.")
-                        self.thread_manager.interaction_in_progress = False
-                        self.thread_manager.end_of_interaction()
-                        return True, text
-                        # Exit the loop once the interaction is complete
-                    if isinstance(event, ThreadRunFailed):
-                        print("\nInteraction failed.")
-                        self.thread_manager.interaction_in_progress = False
-                        self.thread_manager.end_of_interaction()
-                        return False, "Generic OpenAI Error"
-                        # Exit the loop if the interaction fails
-                    # Add more event types as needed based on your application's requirements
+    def submit_tool_calls_and_stream(self, result):
+        return openai.beta.threads.runs.submit_tool_outputs_stream(
+            tool_outputs=[{
+                "output": call["output"],
+                "tool_call_id": call["tool_call_id"]
+            } for call in result["tools"]],
+            run_id=result["run_id"],
+            thread_id=result["thread_id"]
+        )
+    
+    def handle_stream(self, streaming_manager):
+        with streaming_manager as stream:
+            for event in stream:
+                if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
+                    delta = event.data.delta.content[0].text.value
+                    self.text +=  delta if delta is not None else ""
+                    continue
+                if isinstance(event, ThreadRunRequiresAction):
+                    print("ActionRequired")
+                    return AssitsantResult(
+                        calls=self.resolve_calls(event),
+                        status=AssistantResultStatus.ACTION_REQUIED
+                    )
+                if isinstance(event, ThreadRunCompleted):
+                    print("\nInteraction completed.")
+                    self.thread_manager.interaction_in_progress = False
+                    self.thread_manager.end_of_interaction()
+                    return AssitsantResult(
+                        response=self.text,
+                        status=AssistantResultStatus.SUCCESS
+                    )
+                    # Exit the loop once the interaction is complete
+                if isinstance(event, ThreadRunFailed):
+                    print("\nInteraction failed.")
+                    self.thread_manager.interaction_in_progress = False
+                    self.thread_manager.end_of_interaction()
+                    return AssitsantResult(
+                        error="Generic OpenAI Error",
+                        status=AssistantResultStatus.ERROR
+                    )
+                    # Exit the loop if the interaction fails
+                # Add more event types as needed based on your application's requirements
 
     def handle_streaming_interaction(self, event: ApplicationEvent):
         if not self.assistant_id:
@@ -289,13 +223,21 @@ class StreamingManager:
             self.thread_manager.create_thread()
         
         content = event.request
-        self.thread_manager.add_message_to_thread(content)
-        success, text = self.handle_stream()
-
-        if not success:
+        if event.type == ApplicationEventType.AI_INTERACT:
+            self.text = ""
+            self.thread_manager.add_message_to_thread(content)
+            manager = openai.beta.threads.runs.create_and_stream(
+                thread_id=self.thread_manager.thread_id,
+                assistant_id=self.assistant_id,
+            )
+        elif event.type == ApplicationEventType.AI_TOOL_RETURN:
+            manager = self.submit_tool_calls_and_stream(event.request)
+        
+        result = self.handle_stream(manager)
+        if result.status == AssistantResultStatus.ERROR:
             event.status = ProcessingStatus.ERROR
-            event.error = text
+            event.error = result.error
         else:
             event.status = ProcessingStatus.SUCCESS
-            event.result = text
+            event.result = result
         return event
