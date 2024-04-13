@@ -1,0 +1,43 @@
+Program Flow and Key Functions:
+
+1. Keyword Detection (main_controller.py):
+   - setup_keyword_detection(): Sets up keyword detection.
+   - handle_detected_words(words): Callback when keywords are detected. Starts/stops recording, captures images.
+
+2. Audio Recording (audio_recorder.py):
+   - start_recording(): Begins audio recording.
+   - stop_recording(): Ends audio recording and saves to file.
+
+3. Transcription (assemblyai_transcriber.py):
+   - AssemblyAITranscriber.transcribe_audio_file(audio_file_path): Sends audio to AssemblyAI for transcription.
+
+4. Thread Management (main_controller.py):
+   - interact_with_assistant(transcription): Decides to create new thread or add to existing based on recency.
+   - AssistantManager.create_thread(): Creates a new thread for the conversation.
+
+5. AI Interaction (assistant_manager.py):
+   - AssistantManager.handle_streaming_interaction(instructions): Sends transcription to assistant, streams response.
+   - CustomAssistantEventHandler: Handles assistant response events, accumulates and plays back the response.
+
+6. Text-to-Speech (eleven_labs_manager.py):
+   - ElevenLabsManager.play_text(text): Converts assistant's response to speech and plays it back.
+
+7. Image Capture (vision_module.py):
+   - VisionModule.capture_image_async(): Captures an image when "snapshot" keyword is detected.
+   - VisionModule.describe_captured_image(transcription): Describes the captured image using the transcription.
+
+Key Modules:
+- main_controller.py: Central module that orchestrates the flow between components.
+- assistant_manager.py: Manages interaction with the AI assistant (OpenAI).
+- assemblyai_transcriber.py: Handles audio transcription using AssemblyAI.
+- eleven_labs_manager.py: Manages text-to-speech conversion using ElevenLabs.
+- vision_module.py: Handles image capture and description.
+
+APIs Used:
+- AssemblyAI: Audio transcription
+- OpenAI: AI assistant interaction 
+- ElevenLabs: Text-to-speech conversion
+
+The program flow is event-driven, starting with keyword detection which triggers audio recording, transcription, assistant interaction, and finally speech playback. The main_controller module acts as the central hub, coordinating the flow between the different components.
+
+Developers should focus on the main_controller.py, assistant_manager.py and the respective API integration modules (assemblyai_transcriber.py, eleven_labs_manager.py) to understand and extend the core functionality.

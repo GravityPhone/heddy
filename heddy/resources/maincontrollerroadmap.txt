@@ -1,0 +1,28 @@
+how it works now (subject to change)
+
+The Main Controller module, as outlined in main_controller.py, orchestrates the interaction between various components of the system, including keyword detection, audio recording, transcription, and interaction with the OpenAI assistant. It begins by importing necessary modules and initializing the OpenAI client with an API key. It sets up instances for handling audio transcription, text-to-speech conversion, and image description, leveraging external services like AssemblyAI and ElevenLabs. The module defines global state variables to track the recording state, picture mode, and interaction threads.
+The handle_detected_words function listens for specific keywords to start or stop recording and to activate picture mode. The process_recording function handles the transcription of audio recordings and decides whether to process an image description or a transcription based on the picture mode. The CustomAssistantEventHandler class is defined to handle text responses from the assistant, accumulating them for playback.
+The interact_with_assistant function initiates interaction with the assistant, creating a new thread if necessary or using an existing one based on the last interaction time. It sends instructions to the assistant and handles the streaming response. The on_thread_message_completed function processes completed messages, playing back the assistant's response using ElevenLabsManager and restarting keyword detection.
+The dispatch_event function routes events to their respective handlers, and on_thread_run_step_completed handles the completion of interaction steps, playing back responses and managing thread IDs. The initialize function sets up the system for operation, and the main loop simulates receiving events and dispatching them for handling.
+This detailed breakdown of the Main Controller module's functionality provides a roadmap for understanding how it manages the flow of operations and integrates with external services and the OpenAI assistant. It highlights the event-driven nature of the system and the modular approach to handling different aspects of the interaction process.
+
+how we need it to work because it's important to my life goals:
+
+To align the main_controller.py with the latest OpenAI API updates and implement function calling in your OpenAI streaming assistant, follow these steps:
+1. Update Initialization and Global Variables:
+Ensure all necessary components are initialized, including OpenAI client, ElevenLabsManager, AssemblyAITranscriber, and VisionModule.
+Update global variables to manage the state effectively, such as is_recording, picture_mode, last_thread_id, and last_interaction_time.
+Implement Keyword Detection and Audio Recording:
+Utilize setup_keyword_detection() and handle_detected_words(words) to start and stop audio recording based on detected keywords.
+Transcription and Image Capture:
+Use AssemblyAITranscriber for audio file transcription.
+Implement logic in process_recording() to handle transcription and optionally capture and describe images using VisionModule if picture_mode is activated.
+AI Interaction and Thread Management:
+In interact_with_assistant(transcription), check for an existing thread or create a new one using AssistantManager.create_thread().
+ however,  if it has been less than ninety seconds since our last interaction,  we add to the existing thread.
+Send transcription to the assistant and manage streaming responses using AssistantManager.handle_streaming_interaction(instructions).
+
+after interaction pass thread_id into last_thread_id
+
+MOST IMPORTANT:
+Based on the recent OpenAI documentation and community discussions, it is possible to have the AssistantManager handle the function calling logic independently without the need to communicate back to the main controller within each step. The AssistantManager can maintain a mapping of function names to their implementations, allowing it to dynamically call functions based on the assistant's requests. By updating the CustomAssistantEventHandler to handle tool calls and execute the corresponding functions, the AssistantManager can process function calls and their outputs within the interaction loop. This approach simplifies the interaction between the AssistantManager and the main controller, as the function calling logic is self-contained within the AssistantManager. However, there are challenges when handling multi-message input for custom functions in the OpenAI Assistant API. When details are provided across multiple messages in a conversational flow, the function's final status may be marked as completed even if not all required information has been gathered. To address this, it is recommended to describe the function more precisely when adding it to the assistant, specifying the required parameters and their types. Additionally, structuring the prompt in a more organized manner, such as clearly outlining the steps for gathering information, confirming with the user, and adding the information to the database, can help guide the assistant's behavior. Updating the prompt during the conversation based on the state of the conversation is another suggested approach. The Assistants API introduces primitives like Assistants, Threads, and Runs, which enable stateful experiences and powerful tools like Code Interpreter and Retrieval. By leveraging these primitives and following best practices for defining functions and structuring prompts, developers can create robust and interactive assistant experiences that handle multi-step interactions effectively.
