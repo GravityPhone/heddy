@@ -147,6 +147,7 @@ class MainController:
         )
     
     def get_snapshot(self, event: ApplicationEvent):
+        event.status = ProcessingStatus.SUCCESS
         # TODO: move to vision module logic
         event.result = self.vision_module.get_description_of_camera_view(event.request)
         return event
