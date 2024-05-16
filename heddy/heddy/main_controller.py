@@ -63,6 +63,7 @@ class MainController:
         if event.type == ApplicationEventType.USE_SNAPSHOT:
             self.audio_player.play_sound("tricorder.wav")  # Play take a picture sound
             self.vision_module.capture_image_async()
+            self.vision_module.capture_complete.wait()  # Wait for capture to complete
             return ApplicationEvent(ApplicationEventType.GET_SNAPSHOT)
         if event.type == ApplicationEventType.STOP_RECORDING:
             self.audio_player.play_sound("respond.wav")  # Play stop recording/respond sound
