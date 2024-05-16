@@ -19,7 +19,6 @@ import threading
 class MainController:
     # State variables
     is_recording = False
-    picture_mode = False
     last_thread_id = None
     
     # Global variable for transcription
@@ -63,8 +62,8 @@ class MainController:
             return ApplicationEvent(ApplicationEventType.LISTEN)
         if event.type == ApplicationEventType.USE_SNAPSHOT:
             self.audio_player.play_sound("tricorder.wav")  # Play take a picture sound
-            self.set_picture_mode()
-            return ApplicationEvent(ApplicationEventType.LISTEN)
+            self.vision_module.capture_image_async()
+            return ApplicationEvent(ApplicationEventType.GET_SNAPSHOT)
         if event.type == ApplicationEventType.STOP_RECORDING:
             self.audio_player.play_sound("respond.wav")  # Play stop recording/respond sound
             self.stop_recording()
@@ -99,18 +98,11 @@ class MainController:
             return self.handle_detected_word(event.result)
         if event.type == ApplicationEventType.TRANSCRIBE:
             print(f"Transcription result: '{event.result}'")
-            if self.picture_mode:
-                return ApplicationEvent(
-                    type=ApplicationEventType.GET_SNAPSHOT,
-                    request=event.result
-                )
-            else:
-                return ApplicationEvent(
+            return ApplicationEvent(
                 type=ApplicationEventType.AI_INTERACT,
                 request=event.result
             )
         if event.type == ApplicationEventType.GET_SNAPSHOT:
-            self.picture_mode = False
             print(f"Snapshot Result: '{event.result}'")
             return ApplicationEvent(
                 type=ApplicationEventType.AI_INTERACT,
@@ -172,12 +164,6 @@ class MainController:
         self.is_recording = True
         print("Recording started...")
     
-    # TODO: move to an interaction manager(?) module
-    def set_picture_mode(self,):
-        if self.is_recording:
-            self.picture_mode = True
-            print("Picture mode activated")
-
     # TODO: move to an interaction(?) module
     def handle_detected_word(self, word):
         if "computer" in word and not self.is_recording:
@@ -185,8 +171,7 @@ class MainController:
         if "snapshot" in word:
             print("Snapshot command detected")
             self.vision_module.capture_image_async()
-            print("Image capture initiated")
-            return ApplicationEvent(ApplicationEventType.LISTEN)
+            return ApplicationEvent(ApplicationEventType.GET_SNAPSHOT)
         if "reply" in word and self.is_recording:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
         return ApplicationEvent(ApplicationEventType.LISTEN)
