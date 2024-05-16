@@ -43,6 +43,7 @@ class MainController:
         self.vision_module = vision_module
         self.audio_player = audio_player
         self.word_detector = word_detector
+        print("MainController initialized")
 
     def process_event(self, event: ApplicationEvent):
         if event.type == ApplicationEventType.START:
@@ -149,11 +150,13 @@ class MainController:
         )
     
     def get_snapshot(self, event: ApplicationEvent):
-        event.status = ProcessingStatus.SUCCESS
+        print("Processing get_snapshot")
         file_id = self.vision_module.upload_image()
         if file_id:
+            print(f"Image uploaded successfully, file ID: {file_id}")
             event.result = f"{event.request}\n\nImage File ID: {file_id}"
         else:
+            print("Image upload failed")
             event.result = "Image upload failed."
         return event
 
@@ -180,7 +183,9 @@ class MainController:
         if "computer" in word and not self.is_recording:
             return ApplicationEvent(ApplicationEventType.START_RECORDING)
         if "snapshot" in word:
+            print("Snapshot command detected")
             self.vision_module.capture_image_async()
+            print("Image capture initiated")
             return ApplicationEvent(ApplicationEventType.LISTEN)
         if "reply" in word and self.is_recording:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
