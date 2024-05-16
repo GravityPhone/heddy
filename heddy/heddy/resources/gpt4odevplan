@@ -2,7 +2,7 @@
 
 ## Objective
 Update the code to work with the new "GPT4o" (omni multimodal) model and follow the latest instructions for handling image snapshots and attachments.
-we use the ASSISTANTS API and *nothing legacy*
+We use the ASSISTANTS API and *nothing legacy*
 ## Steps
 
 ### 1. Capture Image Immediately on "snapshot" Command
@@ -63,6 +63,7 @@ Remove the function calling for vision but keep the Zapier function.
 148|        elif func.name == "send_image_description":
 149|            return ApplicationEventType.GET_SNAPSHOT
 ```
+
 Remove the above lines.
 
 ## Summary
@@ -72,5 +73,4 @@ Remove the above lines.
 - **Remove Vision Function Calling:** Remove vision-related function calls.
 
 These changes will ensure your code adheres to the new API requirements and functionality.
-
 

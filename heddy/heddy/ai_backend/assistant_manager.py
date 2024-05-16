@@ -17,7 +17,6 @@ from openai.types.beta.assistant_stream_event import (
     ThreadRunStepCancelled, ThreadRunStepDelta)
 from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
-from heddy.vision_module import VisionModule
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -26,7 +25,6 @@ class AssistantResultStatus(Enum):
 
 class AvailableActions(Enum):
     ZAPIER=1
-    PICTURE=2
 
 
 @dataclass
