@@ -1,0 +1,76 @@
+# GPT4o multiModal Update Plan
+
+## Objective
+Update the code to work with the new "GPT4o" (omni multimodal) model and follow the latest instructions for handling image snapshots and attachments.
+we use the ASSISTANTS API and *nothing legacy*
+## Steps
+
+### 1. Capture Image Immediately on "snapshot" Command
+Ensure the image is captured immediately when the word "snapshot" is detected.
+
+**Update `handle_detected_word` Method:**
+```python:heddy/heddy/main_controller.py
+177|    def handle_detected_word(self, word):
+178|        if "computer" in word and not self.is_recording:
+179|            return ApplicationEvent(ApplicationEventType.START_RECORDING)
+180|        if "snapshot" in word:
+181|            self.vision_module.capture_image_async()
+182|            return ApplicationEvent(ApplicationEventType.LISTEN)
+183|        if "reply" in word and self.is_recording:
+184|            return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
+```
+
+### 2. Upload the Image File
+Upload the captured image file to get a `file_id`.
+
+**Add `upload_image` Method and Ensure `self.client` Initialization:**
+```python:heddy/heddy/vision_module.py
+class VisionModule:
+    def __init__(self, openai_api_key):
+        self.api_key = openai_api_key
+        self.client = openai.OpenAI(api_key=self.api_key)
+        self.capture_complete = threading.Event()
+
+    def upload_image(self):
+        if self.image_path and os.path.exists(self.image_path):
+            file = self.client.files.create(
+                file=open(self.image_path, "rb"),
+                purpose="vision"
+            )
+            return file.id
+        return None
+```
+
+### 3. Attach Image to Message
+Reference the `file_id` in the message to the thread before saying "reply".
+
+**Update `get_snapshot` Method:**
+```python:heddy/heddy/main_controller.py
+153|        event.status = ProcessingStatus.SUCCESS
+154|        file_id = self.vision_module.upload_image()
+155|        if file_id:
+156|            event.result = f"{event.request}\n\nImage File ID: {file_id}"
+157|        else:
+158|            event.result = "Image upload failed."
+159|        return event
+```
+
+### 4. Remove Vision Function Calling
+Remove the function calling for vision but keep the Zapier function.
+
+**Remove Vision Function Calling from `resolve_calls`:**
+```python:heddy/heddy/ai_backend/assistant_manager.py
+148|        elif func.name == "send_image_description":
+149|            return ApplicationEventType.GET_SNAPSHOT
+```
+Remove the above lines.
+
+## Summary
+- **Capture Image:** Update `handle_detected_word` to capture images immediately.
+- **Upload Image:** Add `upload_image` method in `VisionModule` and ensure `self.client` is initialized.
+- **Attach Image:** Update `get_snapshot` to include `file_id` in the message.
+- **Remove Vision Function Calling:** Remove vision-related function calls.
+
+These changes will ensure your code adheres to the new API requirements and functionality.
+
+
