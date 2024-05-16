@@ -144,13 +144,15 @@ class MainController:
     
     def get_snapshot(self, event: ApplicationEvent):
         print("Processing get_snapshot")
-        file_id = self.vision_module.upload_image()
-        if file_id:
-            print(f"Image uploaded successfully, file ID: {file_id}")
-            event.result = f"{event.request}\n\nImage File ID: {file_id}"
+        event.status = ProcessingStatus.SUCCESS
+        if self.vision_module.capture_complete.wait(timeout=5):  # Wait for capture to complete, with a 5-second timeout
+            file_id = self.vision_module.upload_image()
+            if file_id:
+                event.result = f"{event.request}\n\nImage File ID: {file_id}"
+            else:
+                event.result = "Image upload failed."
         else:
-            print("Image upload failed")
-            event.result = "Image upload failed."
+            event.result = "Image capture timed out."
         return event
 
     # TODO: move to an interaction manager(?) module
