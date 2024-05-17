@@ -173,14 +173,14 @@ class MainController:
     
     # TODO: move to an interaction(?) module
     def handle_detected_word(self, word):
-        if "computer" in word and not self.is_recording:
-            return ApplicationEvent(ApplicationEventType.START_RECORDING)
         if "snapshot" in word:
             self.vision_module.capture_image_async()
             self.vision_module.capture_complete.wait()  # Wait for capture to complete
-            self.snapshot_taken = True  # Add this line
-            self.snapshot_file_id = self.vision_module.upload_image()  # Add this line
+            self.snapshot_taken = True
+            self.snapshot_file_id = self.vision_module.upload_image()
             return ApplicationEvent(ApplicationEventType.LISTEN)
+        if "computer" in word and not self.is_recording:
+            return ApplicationEvent(ApplicationEventType.START_RECORDING)
         if "reply" in word and self.is_recording:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
         return ApplicationEvent(ApplicationEventType.LISTEN)
@@ -218,7 +218,7 @@ def initialize():
 
     # Initialize ThreadManager and StreamingManager
     thread_manager = ThreadManager(openai_client)
-    streaming_manager = StreamingManager(thread_manager, eleven_labs_manager, assistant_id="asst_3D8tACoidstqhbw5JE2Et2st")
+    streaming_manager = StreamingManager(thread_manager, eleven_labs_manager, assistant_id="asst_3D8tACoidstqhbw5JE2Et2st", openai_client=openai_client)
 
     word_detector = WordDetector()
     return MainController(

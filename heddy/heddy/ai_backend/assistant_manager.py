@@ -113,10 +113,11 @@ class ThreadManager:
 
 
 class StreamingManager:
-    def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None):
+    def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
         self.thread_manager = thread_manager
         self.eleven_labs_manager = eleven_labs_manager
         self.assistant_id = assistant_id
+        self.openai_client = openai_client or openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.event_handler = None
 
     def set_event_handler(self, event_handler):
