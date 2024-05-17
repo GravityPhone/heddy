@@ -246,12 +246,13 @@ class StreamingManager:
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
         print(f"Attaching image with file ID: {file_id} to message.")
+        message_content = []
+        if text:
+            message_content.append({"type": "text", "text": {"value": text}})
+        message_content.append({"type": "image_file", "file_id": file_id})
         message = {
             "role": "user",
-            "content": [
-                {"type": "text", "text": {"value": text}},
-                {"type": "image_file", "file_id": file_id}
-            ]
+            "content": message_content
         }
         print(f"Message content: {message}")
         self.thread_manager.add_message_to_thread(message)
