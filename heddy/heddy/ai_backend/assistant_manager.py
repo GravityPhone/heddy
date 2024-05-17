@@ -249,7 +249,7 @@ class StreamingManager:
         message_content = []
         if text:
             message_content.append({"type": "text", "text": {"value": text}})
-        message_content.append({"type": "image_file", "file_id": file_id})
+        message_content.append({"type": "image_file", "image_file": {"file_id": file_id}})
         message = {
             "role": "user",
             "content": message_content
