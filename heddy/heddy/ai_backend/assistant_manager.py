@@ -249,7 +249,7 @@ class StreamingManager:
         message = {
             "role": "user",
             "content": [
-                {"type": "text", "text": text},
+                {"type": "text", "text": {"value": text}},
                 {"type": "image_file", "file_id": file_id}
             ]
         }
