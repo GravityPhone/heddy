@@ -16,6 +16,7 @@ class VisionModule:
         """Initiates the image capture process in a new thread."""
         self.capture_complete.clear()  # Reset the event for the new capture process
         thread = threading.Thread(target=self.capture_image)
+        print("Initiating image capture ")
         thread.start()
 
     def capture_image(self):
@@ -26,11 +27,14 @@ class VisionModule:
         capture_command = f"libcamera-still -o {self.image_path} --nopreview --timeout 1 --width 1280 --height 720"
 
         try:
-            subprocess.check_call(capture_command.split())
+            print(f"Running command: {capture_command}")
+            output = subprocess.check_output(capture_command.split(), stderr=subprocess.STDOUT)
             print(f"Image captured successfully: {self.image_path}")
+            print(f"Command output: {output.decode().strip()}")
             self.capture_complete.set()  # Signal that the capture has completed
         except subprocess.CalledProcessError as e:
             print(f"Failed to capture image: {e}")
+            print(f"Command output: {e.output.decode().strip()}")
             self.image_path = None  # Ensure path is reset on failure
             self.capture_complete.set()  # Signal to unblock any waiting process, even though capture failed
 

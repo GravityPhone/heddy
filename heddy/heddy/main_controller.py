@@ -145,14 +145,21 @@ class MainController:
     def get_snapshot(self, event: ApplicationEvent):
         print("Processing get_snapshot")
         event.status = ProcessingStatus.SUCCESS
-        if self.vision_module.capture_complete.wait(timeout=5):  # Wait for capture to complete, with a 5-second timeout
-            file_id = self.vision_module.upload_image()
-            if file_id:
-                event.result = f"{event.request}\n\nImage File ID: {file_id}"
-            else:
-                event.result = "Image upload failed."
+        file_id = self.vision_module.upload_image()
+        if file_id:
+            event.result = f"{event.request}\n\nImage File ID: {file_id}"
+            # Attach the image to the message
+            message = {
+                "content": event.result,
+                "file": {
+                    "url": {
+                        "url": f"https://api.openai.com/v1/chat/completions/files/{file_id}"
+                    }
+                }
+            }
+            self.thread_manager.add_message_to_thread(message)
         else:
-            event.result = "Image capture timed out."
+            event.result = "Image upload failed."
         return event
 
     # TODO: move to an interaction manager(?) module
@@ -172,10 +179,8 @@ class MainController:
         if "computer" in word and not self.is_recording:
             return ApplicationEvent(ApplicationEventType.START_RECORDING)
         if "snapshot" in word:
-            print("Snapshot command detected")
             self.vision_module.capture_image_async()
-            self.vision_module.capture_complete.wait()  # Wait for capture to complete
-            return ApplicationEvent(ApplicationEventType.GET_SNAPSHOT)
+            return ApplicationEvent(ApplicationEventType.LISTEN)
         if "reply" in word and self.is_recording:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
         return ApplicationEvent(ApplicationEventType.LISTEN)

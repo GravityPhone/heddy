@@ -9,22 +9,18 @@ We use the ASSISTANTS API and *nothing legacy*
 Ensure the image is captured immediately when the word "snapshot" is detected.
 
 **Update `handle_detected_word` Method:**
-```python:heddy/heddy/main_controller.py
-177|    def handle_detected_word(self, word):
-178|        if "computer" in word and not self.is_recording:
-179|            return ApplicationEvent(ApplicationEventType.START_RECORDING)
-180|        if "snapshot" in word:
-181|            self.vision_module.capture_image_async()
-182|            return ApplicationEvent(ApplicationEventType.LISTEN)
-183|        if "reply" in word and self.is_recording:
-184|            return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
+```python
+def handle_detected_word(self, word):
+    if "snapshot" in word:
+        self.vision_module.capture_image_async()
+        return ApplicationEvent(ApplicationEventType.LISTEN)
 ```
 
 ### 2. Upload the Image File
 Upload the captured image file to get a `file_id`.
 
 **Add `upload_image` Method and Ensure `self.client` Initialization:**
-```python:heddy/heddy/vision_module.py
+```python
 class VisionModule:
     def __init__(self, openai_api_key):
         self.api_key = openai_api_key
@@ -45,23 +41,33 @@ class VisionModule:
 Reference the `file_id` in the message to the thread before saying "reply".
 
 **Update `get_snapshot` Method:**
-```python:heddy/heddy/main_controller.py
-153|        event.status = ProcessingStatus.SUCCESS
-154|        file_id = self.vision_module.upload_image()
-155|        if file_id:
-156|            event.result = f"{event.request}\n\nImage File ID: {file_id}"
-157|        else:
-158|            event.result = "Image upload failed."
-159|        return event
+```python
+def get_snapshot(self, event: ApplicationEvent):
+    event.status = ProcessingStatus.SUCCESS
+    file_id = self.vision_module.upload_image()
+    if file_id:
+        event.result = f"{event.request}\n\nImage File ID: {file_id}"
+        message = {
+            "content": event.result,
+            "file": {
+                "url": {
+                    "url": f"https://api.openai.com/v1/chat/completions/files/{file_id}"
+                }
+            }
+        }
+        self.thread_manager.add_message_to_thread(message)
+    else:
+        event.result = "Image upload failed."
+    return event
 ```
 
 ### 4. Remove Vision Function Calling
 Remove the function calling for vision but keep the Zapier function.
 
 **Remove Vision Function Calling from `resolve_calls`:**
-```python:heddy/heddy/ai_backend/assistant_manager.py
-148|        elif func.name == "send_image_description":
-149|            return ApplicationEventType.GET_SNAPSHOT
+```python
+elif func.name == "send_image_description":
+    return ApplicationEventType.GET_SNAPSHOT
 ```
 
 Remove the above lines.
@@ -69,8 +75,33 @@ Remove the above lines.
 ## Summary
 - **Capture Image:** Update `handle_detected_word` to capture images immediately.
 - **Upload Image:** Add `upload_image` method in `VisionModule` and ensure `self.client` is initialized.
-- **Attach Image:** Update `get_snapshot` to include `file_id` in the message.
+- **Attach Image:** Update `get_snapshot` to include `file_id` in the message and attach the image to the message.
 - **Remove Vision Function Calling:** Remove vision-related function calls.
 
 These changes will ensure your code adheres to the new API requirements and functionality.
 
+## Additional Review and Updates
+
+1. **Handle the assistant's response with the image:**
+   - Parse the openai files API response to extract the relevant information, such as the image file ID.
+   - Retrieve and provide audio feedback about the image based on the file ID. (this will be automatic in their backend)
+
+3. **Test the end-to-end functionality to ensure the image capture, upload, attachment, and audio feedback are working as expected.**
+
+# Tasks already completed:
+# 1. Capture Image Immediately on "snapshot" Command
+#    - Updated the `handle_detected_word` method to capture images immediately.
+# 2. Upload the Image File
+#    - Added the `upload_image` method in the `VisionModule` to upload the captured image file and get the `file_id`.
+#    - Ensured that the `self.client` is initialized with the OpenAI API key.
+# 3. Attach Image to Message
+#    - Updated the `get_snapshot` method to include the `file_id` in the message result and attach the image to the message.
+# 4. Remove Vision Function Calling
+#    - Removed the vision-related function calls from the `resolve_calls` method in the `assistant_manager.py` file.
+
+# Remaining tasks:
+# 1. Handle the assistant's response with the image:
+#    - Parse the assistant's response to extract the relevant information, such as the image file ID.
+#    - Retrieve and provide audio feedback about the image based on the file ID.
+# 2. Review the `ThreadManager` and `StreamingManager` classes to ensure they are properly handling the new multimodal functionality.
+# 3. Test the end-to-end functionality to ensure the image capture, upload, attachment, and audio feedback are working as expected.
