@@ -156,6 +156,8 @@ class MainController:
             event.result = f"{event.request}\n\nImage File ID: {file_id}"
             print(f"Attaching image to message with file ID: {file_id}")
             self.assistant.attach_image_to_message(file_id)
+            self.snapshot_taken = True
+            self.snapshot_file_id = file_id
         else:
             event.result = "Image upload failed."
         return event
