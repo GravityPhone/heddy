@@ -121,7 +121,7 @@ class MainController:
                 type=ApplicationEventType.SYNTHESIZE,
                 request=result.response
             )
-        elif result.status == AssistantResultStatus.ACTION_REQUIED:
+        elif result.status == AssistantResultStatus.ACTION_REQUIRED:
             tool_calls = result.calls["tools"]
             for tool_call in tool_calls:
                 event = self.run(event=ApplicationEvent(
@@ -134,7 +134,7 @@ class MainController:
                 request=result.calls
             )
         else:
-            raise NotImplemented(f"{result=}")
+            raise NotImplementedError(f"{result=}")
     
     def process_func_trigger(self, event: ApplicationEvent):
         return ApplicationEvent(
