@@ -116,7 +116,7 @@ class MainController:
         
     def handle_ai_result(self, result: AssitsantResult):
         if result.status == AssistantResultStatus.SUCCESS:
-            print(f"Assistant Response: '{result}'")
+            print(f"Assistant Response: '{result.response}'")
             return ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
                 request=result.response
@@ -148,6 +148,7 @@ class MainController:
         file_id = self.vision_module.upload_image()
         if file_id:
             event.result = f"{event.request}\n\nImage File ID: {file_id}"
+            print(f"Attaching image to message with file ID: {file_id}")
             self.assistant.attach_image_to_message(file_id)
         else:
             event.result = "Image upload failed."

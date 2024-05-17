@@ -4,6 +4,7 @@ import uuid
 import threading
 import requests
 import openai
+import time
 
 class VisionModule:
     def __init__(self, openai_api_key):
@@ -44,6 +45,13 @@ class VisionModule:
                 file=open(self.image_path, "rb"),
                 purpose="vision"
             )
-            return file.id
+            print(f"Uploaded image file ID: {file.id}")
+            return self.poll_file_status(file.id)
         return None
 
+    def poll_file_status(self, file_id):
+        while True:
+            file = self.client.files.retrieve(file_id)
+            if file.status == "processed":
+                return file.id
+            time.sleep(1)

@@ -150,8 +150,10 @@ class StreamingManager:
             }
         elif action.type == "upload_image":
             return self.upload_image_to_openai(event)
+        elif action.type == "snapshot":
+            return self.handle_snapshot(event)
         # Remove or comment out the problematic function call
-        # if func.name == "snap_picture":
+        # if func.name == "snapshot":
         #     raise NotImplementedError("Function not implemented.")
     
     def upload_image_to_openai(self, event):
@@ -162,6 +164,12 @@ class StreamingManager:
                 purpose="vision"
             )
         return response.id
+    
+    def handle_snapshot(self, event):
+        self.vision_module.capture_image_async()
+        self.vision_module.capture_complete.wait()
+        file_id = self.upload_image_to_openai(event)
+        return file_id
     
     def submit_tool_calls_and_stream(self, result):
         return openai.beta.threads.runs.submit_tool_outputs_stream(
