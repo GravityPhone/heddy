@@ -148,16 +148,7 @@ class MainController:
         file_id = self.vision_module.upload_image()
         if file_id:
             event.result = f"{event.request}\n\nImage File ID: {file_id}"
-            # Attach the image to the message
-            message = {
-                "content": event.result,
-                "file": {
-                    "url": {
-                        "url": f"https://api.openai.com/v1/chat/completions/files/{file_id}"
-                    }
-                }
-            }
-            self.thread_manager.add_message_to_thread(message)
+            self.assistant.attach_image_to_message(file_id)
         else:
             event.result = "Image upload failed."
         return event

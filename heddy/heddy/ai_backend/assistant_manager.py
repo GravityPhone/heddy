@@ -148,7 +148,18 @@ class StreamingManager:
                 "run_id": data.id,
                 "thread_id": data.thread_id
             }
+        elif action.type == "upload_image":
+            return self.upload_image_to_openai(event)
         raise NotImplementedError(f"{action.type=}")
+    
+    def upload_image_to_openai(self, event):
+        image_path = event.image_path  # Ensure you have the correct path from your event or context
+        with open(image_path, "rb") as image_file:
+            response = self.openai_client.files.create(
+                file=image_file,
+                purpose="vision"
+            )
+        return response.id  # This will return the file ID
     
     def submit_tool_calls_and_stream(self, result):
         return openai.beta.threads.runs.submit_tool_outputs_stream(
@@ -219,3 +230,17 @@ class StreamingManager:
             event.status = ProcessingStatus.SUCCESS
             event.result = result
         return event
+
+    def attach_image_to_message(self, file_id):
+        thread = self.openai_client.beta.threads.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Here is the image we discussed."},
+                        {"type": "image_file", "file_id": file_id}
+                    ]
+                }
+            ]
+        )
+        return thread
