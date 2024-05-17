@@ -46,7 +46,7 @@ class VisionModule:
                 purpose="vision"
             )
             print(f"Uploaded image file ID: {file.id}")
-            return self.poll_file_status(file.id)
+            return file.id
         return None
 
     def poll_file_status(self, file_id):
