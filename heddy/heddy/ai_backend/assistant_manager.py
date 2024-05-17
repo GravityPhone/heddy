@@ -150,16 +150,18 @@ class StreamingManager:
             }
         elif action.type == "upload_image":
             return self.upload_image_to_openai(event)
-        raise NotImplementedError(f"{action.type=}")
+        # Remove or comment out the problematic function call
+        # if func.name == "retrieve_image_description":
+        #     raise NotImplementedError("Function not implemented.")
     
     def upload_image_to_openai(self, event):
-        image_path = event.image_path  # Ensure you have the correct path from your event or context
+        image_path = event.image_path
         with open(image_path, "rb") as image_file:
             response = self.openai_client.files.create(
                 file=image_file,
                 purpose="vision"
             )
-        return response.id  # This will return the file ID
+        return response.id
     
     def submit_tool_calls_and_stream(self, result):
         return openai.beta.threads.runs.submit_tool_outputs_stream(
