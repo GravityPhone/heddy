@@ -151,7 +151,7 @@ class StreamingManager:
         elif action.type == "upload_image":
             return self.upload_image_to_openai(event)
         # Remove or comment out the problematic function call
-        # if func.name == "retrieve_image_description":
+        # if func.name == "snap_picture":
         #     raise NotImplementedError("Function not implemented.")
     
     def upload_image_to_openai(self, event):
