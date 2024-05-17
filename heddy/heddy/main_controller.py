@@ -81,6 +81,7 @@ class MainController:
             return self.get_snapshot(event)
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
             if self.snapshot_taken:
+                print(f"Attaching snapshot with file ID: {self.snapshot_file_id} to message.")
                 self.assistant.attach_image_to_message(self.snapshot_file_id)
                 self.snapshot_taken = False  # Reset the flag
             return self.assistant.handle_streaming_interaction(event)
@@ -174,10 +175,12 @@ class MainController:
     # TODO: move to an interaction(?) module
     def handle_detected_word(self, word):
         if "snapshot" in word:
+            print("Detected 'snapshot' keyword.")
             self.vision_module.capture_image_async()
             self.vision_module.capture_complete.wait()  # Wait for capture to complete
             self.snapshot_taken = True
             self.snapshot_file_id = self.vision_module.upload_image()
+            print(f"Snapshot taken with file ID: {self.snapshot_file_id}")
             return ApplicationEvent(ApplicationEventType.LISTEN)
         if "computer" in word and not self.is_recording:
             return ApplicationEvent(ApplicationEventType.START_RECORDING)

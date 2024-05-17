@@ -243,6 +243,7 @@ class StreamingManager:
         return event
 
     def attach_image_to_message(self, file_id):
+        print(f"Attaching image with file ID: {file_id} to message.")
         message = {
             "role": "user",
             "content": [
@@ -250,5 +251,6 @@ class StreamingManager:
                 {"type": "image_file", "file_id": file_id}
             ]
         }
+        print(f"Message content: {message}")
         self.thread_manager.add_message_to_thread(message)
 
