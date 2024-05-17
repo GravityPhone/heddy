@@ -250,5 +250,5 @@ class StreamingManager:
                 {"type": "image_file", "file_id": file_id}
             ]
         }
-        self.add_message_to_thread(message)
+        self.thread_manager.add_message_to_thread(message)
 
