@@ -172,6 +172,7 @@ class MainController:
             return ApplicationEvent(ApplicationEventType.START_RECORDING)
         if "snapshot" in word:
             self.vision_module.capture_image_async()
+            self.vision_module.capture_complete.wait()  # Wait for capture to complete
             return ApplicationEvent(ApplicationEventType.LISTEN)
         if "reply" in word and self.is_recording:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)

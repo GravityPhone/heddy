@@ -53,5 +53,6 @@ class VisionModule:
         while True:
             file = self.client.files.retrieve(file_id)
             if file.status == "processed":
+                print(f"File {file_id} processed successfully.")
                 return file.id
             time.sleep(1)
