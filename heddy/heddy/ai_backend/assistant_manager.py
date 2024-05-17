@@ -242,12 +242,12 @@ class StreamingManager:
             event.result = result
         return event
 
-    def attach_image_to_message(self, file_id):
+    def attach_image_to_message(self, file_id, text):
         print(f"Attaching image with file ID: {file_id} to message.")
         message = {
             "role": "user",
             "content": [
-                {"type": "text", "text": "Here is the image we discussed."},
+                {"type": "text", "text": text},
                 {"type": "image_file", "file_id": file_id}
             ]
         }

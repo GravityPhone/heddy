@@ -82,7 +82,7 @@ class MainController:
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
             if self.snapshot_taken:
                 print(f"Attaching snapshot with file ID: {self.snapshot_file_id} to message.")
-                self.assistant.attach_image_to_message(self.snapshot_file_id)
+                self.assistant.attach_image_to_message(self.snapshot_file_id, event.result)
                 self.snapshot_taken = False  # Reset the flag
             return self.assistant.handle_streaming_interaction(event)
         if event.type == ApplicationEventType.ZAPIER:
