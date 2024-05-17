@@ -243,15 +243,12 @@ class StreamingManager:
         return event
 
     def attach_image_to_message(self, file_id):
-        thread = self.openai_client.beta.threads.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Here is the image we discussed."},
-                        {"type": "image_file", "file_id": file_id}
-                    ]
-                }
+        message = {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Here is the image we discussed."},
+                {"type": "image_file", "file_id": file_id}
             ]
-        )
-        return thread
+        }
+        self.add_message_to_thread(message)
+
