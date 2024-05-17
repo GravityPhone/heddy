@@ -20,6 +20,8 @@ class MainController:
     # State variables
     is_recording = False
     last_thread_id = None
+    snapshot_taken = False  # Add this line
+    snapshot_file_id = None  # Add this line
     
     # Global variable for transcription
     transcription = ""
@@ -78,6 +80,9 @@ class MainController:
         if event.type == ApplicationEventType.GET_SNAPSHOT:
             return self.get_snapshot(event)
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
+            if self.snapshot_taken:
+                self.assistant.attach_image_to_message(self.snapshot_file_id)
+                self.snapshot_taken = False  # Reset the flag
             return self.assistant.handle_streaming_interaction(event)
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
@@ -173,6 +178,8 @@ class MainController:
         if "snapshot" in word:
             self.vision_module.capture_image_async()
             self.vision_module.capture_complete.wait()  # Wait for capture to complete
+            self.snapshot_taken = True  # Add this line
+            self.snapshot_file_id = self.vision_module.upload_image()  # Add this line
             return ApplicationEvent(ApplicationEventType.LISTEN)
         if "reply" in word and self.is_recording:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
