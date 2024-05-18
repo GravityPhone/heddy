@@ -55,7 +55,7 @@ class ThreadManager:
             print(f"Failed to create a thread: {e}")
             return None
 
-    def add_message_to_thread(self, content):
+    def add_message_to_thread(self, content, snapshot_file_id=None):
         if not self.thread_id:
             print("No thread ID set. Cannot add message.")
             return
@@ -65,10 +65,29 @@ class ThreadManager:
             return
 
         try:
+            message_content = [
+                {
+                    "type": "text",
+                    "text": {
+                        "value": content
+                    }
+                }
+            ]
+            attachments = []
+            if snapshot_file_id:
+                attachments.append({
+                    "file_id": snapshot_file_id,
+                    "tools": [
+                        {"type": "file_search"},
+                        {"type": "code_interpreter"}
+                    ]
+                })
+
             message = self.client.beta.threads.messages.create(
                 thread_id=self.thread_id,
                 role="user",
-                content=content
+                content=message_content,
+                attachments=attachments
             )
             print(f"Message added to thread: {self.thread_id}")
         except Exception as e:
@@ -215,32 +234,21 @@ class StreamingManager:
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
         
-        content = event.request
+        content = event.request.get("transcription_text")
+        snapshot_file_id = event.request.get("snapshot_file_id")
+        
         if event.type == ApplicationEventType.AI_INTERACT:
             self.text = ""
-            self.thread_manager.add_message_to_thread(content)
+            self.thread_manager.add_message_to_thread(content, snapshot_file_id)
             manager = openai.beta.threads.runs.create_and_poll(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                messages=[
+                attachments=[
                     {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": {
-                                    "value": content
-                                }
-                            }
-                        ],
-                        "attachments": [
-                            {
-                                "file_id": event.request.get("snapshot_file_id"),
-                                "tools": [
-                                    { "type": "file_search" },
-                                    { "type": "code_interpreter" }
-                                ]
-                            }
+                        "file_id": snapshot_file_id,
+                        "tools": [
+                            {"type": "file_search"},
+                            {"type": "code_interpreter"}
                         ]
                     }
                 ]
@@ -248,7 +256,7 @@ class StreamingManager:
             return self.handle_stream(manager)
         elif event.type == ApplicationEventType.AI_TOOL_RETURN:
             manager = self.submit_tool_calls_and_stream(event.request)
-        
+
         result = self.handle_stream(manager)
         if result.status == AssistantResultStatus.ERROR:
             event.status = ProcessingStatus.ERROR
