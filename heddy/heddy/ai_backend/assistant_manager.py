@@ -229,14 +229,6 @@ class StreamingManager:
             self.thread_manager.create_thread()
 
         print(f"Handling streaming interaction for event: {event}")
-        messages = [{
-            "role": "user",
-            "content": {
-                "type": "text",
-                "text": event.request.get("transcription_text")
-            }
-        }]
-        print(f"Constructed messages: {messages}")
         attachments = []
         if event.request.get("snapshot_file_id"):
             attachments.append({
@@ -246,13 +238,17 @@ class StreamingManager:
         print(f"Constructed attachments: {attachments}")
 
         try:
-            response = self.openai_client.beta.threads.runs.create(
+            message = self.openai_client.beta.threads.messages.create(
                 thread_id=self.thread_manager.thread_id,
-                assistant_id=self.assistant_id,
+                role="user",
+                content=[{
+                    "type": "text",
+                    "text": event.request.get("transcription_text")
+                }],
                 attachments=attachments
             )
-            print(f"Received response: {response}")
-            return response
+            print(f"Message added to thread: {message}")
+            return message
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
             return None
