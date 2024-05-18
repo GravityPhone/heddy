@@ -20,8 +20,8 @@ class MainController:
     # State variables
     is_recording = False
     last_thread_id = None
-    snapshot_taken = False  # Add this line
-    snapshot_file_id = None  # Add this line
+    snapshot_taken = False
+    snapshot_file_id = None
     
     # Global variable for transcription
     transcription = ""
@@ -76,14 +76,35 @@ class MainController:
                 request="recorded_audio.wav"
             )
         if event.type == ApplicationEventType.TRANSCRIBE:
-            return self.transcriber.transcribe_audio_file(event)
+            transcription_result = self.transcriber.transcribe_audio_file(event)
+            transcription_text = transcription_result.result
+
+            if self.snapshot_taken:
+                file_id = self.snapshot_file_id
+                self.snapshot_taken = False
+                self.snapshot_file_id = None
+                return self.assistant.handle_streaming_interaction(ApplicationEvent(
+                    type=ApplicationEventType.AI_INTERACT,
+                    request=transcription_text,
+                    snapshot_file_id=file_id
+                ))
+            else:
+                return ApplicationEvent(
+                    type=ApplicationEventType.SYNTHESIZE,
+                    request=transcription_text
+                )
         if event.type == ApplicationEventType.GET_SNAPSHOT:
             return self.get_snapshot(event)
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
             if self.snapshot_taken:
                 print(f"Attaching snapshot with file ID: {self.snapshot_file_id} to message.")
-                self.assistant.attach_image_to_message(self.snapshot_file_id, event.result)
-                self.snapshot_taken = False  # Reset the flag
+                self.assistant.handle_streaming_interaction(ApplicationEvent(
+                    type=event.type,
+                    request=event.result,
+                    snapshot_file_id=self.snapshot_file_id
+                ))
+                self.snapshot_taken = False
+                self.snapshot_file_id = None
             return self.assistant.handle_streaming_interaction(event)
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
@@ -117,9 +138,11 @@ class MainController:
             )
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
             return self.handle_ai_result(event.result)
-            
-            
-        
+        return ApplicationEvent(
+            type=ApplicationEventType.EXIT,
+            result="Unhandled event type"
+        )
+    
     def handle_ai_result(self, result: AssitsantResult):
         if result.status == AssistantResultStatus.SUCCESS:
             print(f"Assistant Response: '{result.response}'")
@@ -155,7 +178,6 @@ class MainController:
         if file_id:
             event.result = f"{event.request}\n\nImage File ID: {file_id}"
             print(f"Attaching image to message with file ID: {file_id}")
-            self.assistant.attach_image_to_message(file_id)
             self.snapshot_taken = True
             self.snapshot_file_id = file_id
         else:

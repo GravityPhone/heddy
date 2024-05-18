@@ -102,7 +102,7 @@ class ThreadManager:
             self.reset_timer.cancel()
         
         # Create and start a new timer
-        self.reset_timer = threading.Timer(90, reset)
+        self.reset_timer = threading.Timer(180, reset)
         self.reset_timer.start()
 
     def end_of_interaction(self):
@@ -166,7 +166,6 @@ class StreamingManager:
         self.vision_module.capture_image_async()
         self.vision_module.capture_complete.wait()
         file_id = self.upload_image_to_openai(event)
-        self.attach_image_to_message(file_id, "Snapshot taken")
         return file_id
     
     def submit_tool_calls_and_stream(self, result):
@@ -236,8 +235,8 @@ class StreamingManager:
                         ],
                         "attachments": [
                             {
-                                "file_id": self.snapshot_file_id,
-                                "tool_resources": [
+                                "file_id": event.snapshot_file_id,
+                                "tools": [
                                     { "type": "file_search" },
                                     { "type": "code_interpreter" }
                                 ]
@@ -258,44 +257,4 @@ class StreamingManager:
             event.status = ProcessingStatus.SUCCESS
             event.result = result
         return event
-
-    def attach_image_to_message(self, file_id, text):
-        print(f"Starting to attach image with file ID: {file_id} and text: '{text}'")
-        if not self.thread_manager.thread_id:
-            self.thread_manager.create_thread()
-            print("Created new thread for message.")
-
-        # Ensure text content is added
-        message_content = [{"type": "text", "text": {"value": text}}] if text else []
-        print(f"Message content prepared: {message_content}")
-        
-        # Add image file content
-        message_content.append({
-            "type": "image_file",
-            "image_file": {"file_id": file_id}
-        })
-        print(f"Image file added to message content.")
-
-        # Construct the message with attachments for vision
-        message = {
-            "role": "user",
-            "content": message_content
-        }
-        print(f"Complete message constructed: {message}")
-
-        try:
-            self.thread_manager.add_message_to_thread(message)
-            print("Message successfully added to thread.")
-        except Exception as e:
-            print(f"Failed to add message to thread: {e}")
-
-
-
-
-
-
-
-
-
-
 
