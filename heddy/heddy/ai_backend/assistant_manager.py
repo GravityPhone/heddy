@@ -249,7 +249,6 @@ class StreamingManager:
             response = self.openai_client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                messages=messages,
                 attachments=attachments
             )
             print(f"Received response: {response}")
