@@ -170,6 +170,7 @@ class StreamingManager:
         self.vision_module.capture_image_async()
         self.vision_module.capture_complete.wait()
         file_id = self.upload_image_to_openai(event)
+        self.attach_image_to_message(file_id, "Snapshot taken")
         return file_id
     
     def submit_tool_calls_and_stream(self, result):
@@ -250,7 +251,14 @@ class StreamingManager:
         message_content = []
         if text:
             message_content.append({"type": "text", "text": {"value": text}})
-        message_content.append({"type": "image_file", "image_file": {"file_id": file_id}})
+        message_content.append({
+            "type": "image_file", 
+            "image_file": {"file_id": file_id},
+            "tools": [
+                {"type": "file_search"},
+                {"type": "code_interpreter"}
+            ]
+        })
         
         message = {
             "role": "user",
