@@ -85,8 +85,7 @@ class MainController:
                 self.snapshot_file_id = None
                 return self.assistant.handle_streaming_interaction(ApplicationEvent(
                     type=ApplicationEventType.AI_INTERACT,
-                    request=transcription_text,
-                    snapshot_file_id=file_id
+                    request={"transcription_text": transcription_text, "snapshot_file_id": file_id}
                 ))
             else:
                 return ApplicationEvent(
@@ -100,8 +99,7 @@ class MainController:
                 print(f"Attaching snapshot with file ID: {self.snapshot_file_id} to message.")
                 self.assistant.handle_streaming_interaction(ApplicationEvent(
                     type=event.type,
-                    request=event.result,
-                    snapshot_file_id=self.snapshot_file_id
+                    request={"result": event.result, "snapshot_file_id": self.snapshot_file_id}
                 ))
                 self.snapshot_taken = False
                 self.snapshot_file_id = None

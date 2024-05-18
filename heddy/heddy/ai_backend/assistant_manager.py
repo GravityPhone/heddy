@@ -235,7 +235,7 @@ class StreamingManager:
                         ],
                         "attachments": [
                             {
-                                "file_id": event.snapshot_file_id,
+                                "file_id": event.request.get("snapshot_file_id"),
                                 "tools": [
                                     { "type": "file_search" },
                                     { "type": "code_interpreter" }
