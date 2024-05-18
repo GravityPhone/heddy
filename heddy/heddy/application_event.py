@@ -32,3 +32,10 @@ class ApplicationEvent:
     result: Optional[Any] = None
     error: Optional[str] = ""
     status: ProcessingStatus = ProcessingStatus.INIT
+
+@dataclass
+class Message:
+    id: str
+    role: str
+    content: str
+    status: ProcessingStatus = ProcessingStatus.INIT
