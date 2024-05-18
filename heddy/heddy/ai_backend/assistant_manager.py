@@ -74,11 +74,7 @@ class ThreadManager:
             attachments = []
             if snapshot_file_id:
                 attachments.append({
-                    "file_id": snapshot_file_id,
-                    "tools": [
-                        {"type": "file_search"},
-                        {"type": "code_interpreter"}
-                    ]
+                    "file_id": snapshot_file_id                   
                 })
 
             message = self.client.beta.threads.messages.create(
@@ -231,36 +227,29 @@ class StreamingManager:
             return
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
-        
-        content = event.request.get("transcription_text")
-        snapshot_file_id = event.request.get("snapshot_file_id")
-        
-        if event.type == ApplicationEventType.AI_INTERACT:
-            self.text = ""
-            self.thread_manager.add_message_to_thread(content, snapshot_file_id)
-            manager = openai.beta.threads.runs.create_and_poll(
+
+        content = [{
+            "type": "text",
+            "text": event.request.get("transcription_text")
+        }]
+        attachments = []
+        if event.request.get("snapshot_file_id"):
+            attachments.append({
+                "file_id": event.request.get("snapshot_file_id")
+            })
+
+        try:
+            response = self.client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                attachments=[
-                    {
-                        "file_id": snapshot_file_id,
-                        "tools": [
-                            {"type": "file_search"},
-                            {"type": "code_interpreter"}
-                        ]
-                    }
-                ]
+                messages=[{
+                    "role": "user",
+                    "content": content,
+                    "attachments": attachments
+                }]
             )
-            return self.handle_stream(manager)
-        elif event.type == ApplicationEventType.AI_TOOL_RETURN:
-            manager = self.submit_tool_calls_and_stream(event.request)
-
-        result = self.handle_stream(manager)
-        if result.status == AssistantResultStatus.ERROR:
-            event.status = ProcessingStatus.ERROR
-            event.error = result.error
-        else:
-            event.status = ProcessingStatus.SUCCESS
-            event.result = result
-        return event
+            return response
+        except Exception as e:
+            print(f"Error during streaming interaction: {e}")
+            return None
 
