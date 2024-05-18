@@ -228,10 +228,13 @@ class StreamingManager:
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
 
-        content = {
-            "type": "text",
-            "text": event.request.get("transcription_text")
-        }
+        messages = [{
+            "role": "user",
+            "content": {
+                "type": "text",
+                "text": event.request.get("transcription_text")
+            }
+        }]
         attachments = []
         if event.request.get("snapshot_file_id"):
             attachments.append({
@@ -243,7 +246,7 @@ class StreamingManager:
             response = self.openai_client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                content=[content],
+                messages=messages,
                 attachments=attachments
             )
             return response
