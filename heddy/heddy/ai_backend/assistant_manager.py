@@ -237,7 +237,7 @@ class StreamingManager:
                         "attachments": [
                             {
                                 "file_id": self.snapshot_file_id,
-                                "tools": [
+                                "tool_resources": [
                                     { "type": "file_search" },
                                     { "type": "code_interpreter" }
                                 ]
@@ -286,5 +286,6 @@ class StreamingManager:
             print(f"Message content: {message}")
         except Exception as e:
             print(f"Failed to add message to thread: {e}")
+
 
 
