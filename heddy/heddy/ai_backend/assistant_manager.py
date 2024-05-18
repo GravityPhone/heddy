@@ -143,7 +143,6 @@ class StreamingManager:
                     "tool_call_id": call.id
                 })
             
-            # TODO: change to object
             return {
                 "tools": tool_calls,
                 "run_id": data.id,
@@ -153,9 +152,6 @@ class StreamingManager:
             return self.upload_image_to_openai(event)
         elif action.type == "snapshot":
             return self.handle_snapshot(event)
-        # Remove or comment out the problematic function call
-        # if func.name == "snapshot":
-        #     raise NotImplementedError("Function not implemented.")
     
     def upload_image_to_openai(self, event):
         image_path = event.image_path
@@ -204,7 +200,6 @@ class StreamingManager:
                         response=self.text,
                         status=AssistantResultStatus.SUCCESS
                     )
-                    # Exit the loop once the interaction is complete
                 if isinstance(event, ThreadRunFailed):
                     print("\nInteraction failed.")
                     self.thread_manager.interaction_in_progress = False
@@ -213,8 +208,6 @@ class StreamingManager:
                         error="Generic OpenAI Error",
                         status=AssistantResultStatus.ERROR
                     )
-                    # Exit the loop if the interaction fails
-                # Add more event types as needed based on your application's requirements
 
     def handle_streaming_interaction(self, event: ApplicationEvent):
         if not self.assistant_id:
@@ -230,7 +223,14 @@ class StreamingManager:
             manager = openai.beta.threads.runs.create_and_stream(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
+                messages=[{
+                    "role": "user",
+                    "content": [{"type": "text", "text": {"value": content}}],
+                    "attachments": []  # Add attachments if necessary
+                }],
+                stream=True
             )
+            return self.handle_stream(manager)
         elif event.type == ApplicationEventType.AI_TOOL_RETURN:
             manager = self.submit_tool_calls_and_stream(event.request)
         
@@ -258,9 +258,8 @@ class StreamingManager:
             "attachments": [
                 {
                     "file_id": file_id,
-                    "tools": [
-                        {"type": "file_search"},
-                        {"type": "code_interpreter"}
+                    "tool_resources": [
+                        {"type": "file_search"}
                     ]
                 }
             ]
