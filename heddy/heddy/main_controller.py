@@ -1,6 +1,6 @@
 import os
 from heddy.ai_backend.zapier_manager import ZapierManager
-from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus
+from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus, Message
 from heddy.io.sound_effects_player import AudioPlayer
 from heddy.speech_to_text.stt_manager import STTManager
 from heddy.text_to_speech.text_to_speach_manager import TTSManager
@@ -138,6 +138,14 @@ class MainController:
             )
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
             return self.handle_ai_result(event.result)
+        if isinstance(event, Message):
+            print(f"Processing message: {event.id}, {event.role}, {event.content}")
+            return ApplicationEvent(
+                type=ApplicationEventType.SYNTHESIZE,
+                request=event.content
+            )
+        else:
+            raise ValueError("Unknown result type")
         return ApplicationEvent(
             type=ApplicationEventType.EXIT,
             result="Unhandled event type"

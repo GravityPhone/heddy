@@ -240,7 +240,7 @@ class StreamingManager:
         if event.request.get("snapshot_file_id"):
             content.append({
                 "type": "image_file",
-                "image_file": {"file_id": event.request.get("snapshot_file_id")}
+                "image_file": {"file_id": event.request.get("snapshot_file_id"), "detail": "high"}
             })
 
         print(f"Constructed content: {content}")
