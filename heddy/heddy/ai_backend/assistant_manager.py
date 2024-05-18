@@ -223,7 +223,28 @@ class StreamingManager:
             manager = openai.beta.threads.runs.create_and_poll(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                stream=True
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": {
+                                    "value": content
+                                }
+                            }
+                        ],
+                        "attachments": [
+                            {
+                                "file_id": self.snapshot_file_id,
+                                "tools": [
+                                    { "type": "file_search" },
+                                    { "type": "code_interpreter" }
+                                ]
+                            }
+                        ]
+                    }
+                ]
             )
             return self.handle_stream(manager)
         elif event.type == ApplicationEventType.AI_TOOL_RETURN:
