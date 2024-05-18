@@ -229,23 +229,27 @@ class StreamingManager:
             self.thread_manager.create_thread()
 
         print(f"Handling streaming interaction for event: {event}")
-        attachments = []
+
+        content = [
+            {
+                "type": "text",
+                "text": event.request.get("transcription_text")
+            }
+        ]
+
         if event.request.get("snapshot_file_id"):
-            attachments.append({
-                "file_id": event.request.get("snapshot_file_id"),
-                
+            content.append({
+                "type": "image_file",
+                "image_file": {"file_id": event.request.get("snapshot_file_id")}
             })
-        print(f"Constructed attachments: {attachments}")
+
+        print(f"Constructed content: {content}")
 
         try:
             message = self.openai_client.beta.threads.messages.create(
                 thread_id=self.thread_manager.thread_id,
                 role="user",
-                content=[{
-                    "type": "text",
-                    "text": event.request.get("transcription_text")
-                }],
-                attachments=attachments
+                content=content
             )
             print(f"Message added to thread: {message}")
             return message
