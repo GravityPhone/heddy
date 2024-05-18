@@ -19,17 +19,21 @@ class VisionModule:
         thread.start()
 
     def capture_image(self):
-        """Captures an image using fswebcam and saves it as a PNG file."""
+        """Captures an image using libcamera-still and saves it as a PNG file."""
         image_file_name = f"{uuid.uuid4()}.png"
         image_path = f"/tmp/{image_file_name}"
         print("Taking picture now...")
-        capture_command = f"fswebcam --no-banner --resolution 1280x720 --save {image_path} -d /dev/video0 -r 1280x720 --png 1"
+        capture_command = f"libcamera-still -o {image_path} --nopreview --timeout 1 --width 1280 --height 720"
 
         try:
-            subprocess.check_call(capture_command.split())
+            print(f"Running command: {capture_command}")
+            output = subprocess.check_output(capture_command.split(), stderr=subprocess.STDOUT)
+            print(f"Image captured successfully: {image_path}")
+            print(f"Command output: {output.decode().strip()}")
             self.capture_complete.set()  # Signal that the capture has completed
         except subprocess.CalledProcessError as e:
             print(f"Failed to capture image: {e}")
+            print(f"Command output: {e.output.decode().strip()}")
             image_path = None  # Ensure path is reset on failure
             self.capture_complete.set()  # Signal to unblock any waiting process, even though capture failed
         
