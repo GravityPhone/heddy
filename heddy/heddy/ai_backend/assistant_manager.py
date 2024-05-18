@@ -158,7 +158,7 @@ class StreamingManager:
         with open(image_path, "rb") as image_file:
             response = self.openai_client.files.create(
                 file=image_file,
-                purpose="vision"
+                purpose="vision"  # Ensure the purpose is set to vision
             )
         return response.id
     
@@ -260,32 +260,42 @@ class StreamingManager:
         return event
 
     def attach_image_to_message(self, file_id, text):
+        print(f"Starting to attach image with file ID: {file_id} and text: '{text}'")
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
-        print(f"Attaching image with file ID: {file_id} to message.")
+            print("Created new thread for message.")
+
+        # Ensure text content is added
+        message_content = [{"type": "text", "text": {"value": text}}] if text else []
+        print(f"Message content prepared: {message_content}")
         
-        message_content = []
-        if text:
-            message_content.append({"type": "text", "text": {"value": text}})
-        
+        # Add image file content
+        message_content.append({
+            "type": "image_file",
+            "image_file": {"file_id": file_id}
+        })
+        print(f"Image file added to message content.")
+
+        # Construct the message with attachments for vision
         message = {
             "role": "user",
-            "content": message_content,
-            "attachments": [
-                {
-                    "file_id": file_id,
-                    "tool_resources": [
-                        {"type": "file_search"}
-                    ]
-                }
-            ]
+            "content": message_content
         }
-        
+        print(f"Complete message constructed: {message}")
+
         try:
             self.thread_manager.add_message_to_thread(message)
-            print(f"Message content: {message}")
+            print("Message successfully added to thread.")
         except Exception as e:
             print(f"Failed to add message to thread: {e}")
+
+
+
+
+
+
+
+
 
 
 

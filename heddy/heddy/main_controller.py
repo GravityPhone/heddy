@@ -84,7 +84,7 @@ class MainController:
                 print(f"Attaching snapshot with file ID: {self.snapshot_file_id} to message.")
                 self.assistant.attach_image_to_message(self.snapshot_file_id, event.result)
                 self.snapshot_taken = False  # Reset the flag
-            return self.assistant.handle_interaction(event)
+            return self.assistant.handle_streaming_interaction(event)
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
 
