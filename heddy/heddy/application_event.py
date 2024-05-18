@@ -4,34 +4,23 @@ from typing import Optional
 from traitlets import Any
 
 class ApplicationEventType(Enum):
-    EXIT = -1
-    START = 0
-    SYNTHESIZE = 1
-    PLAY = 2
-    LISTEN = 3
-    START_RECORDING = 4
-    USE_SNAPSHOT = 5
-    STOP_RECORDING = 6
-    TRANSCRIBE = 7
-    GET_SNAPSHOT = 8
-    AI_INTERACT = 9
-    AI_TOOL_RETURN = 10
-    ZAPIER = 11
+    START = "start"
+    SYNTHESIZE = "synthesize"
+    AI_INTERACT = "ai_interact"
+    AI_TOOL_RETURN = "ai_tool_return"
 
 class ProcessingStatus(Enum):
-    INIT = 0
-    SUCCESS = 1
-    ERROR = -1
+    INIT = "init"
+    SUCCESS = "success"
+    ERROR = "error"
 
-
-# TODO: typevar
-@dataclass
 class ApplicationEvent:
-    type: ApplicationEventType
-    request: Optional[Any] = None
-    result: Optional[Any] = None
-    error: Optional[str] = ""
-    status: ProcessingStatus = ProcessingStatus.INIT
+    def __init__(self, type, status=ProcessingStatus.INIT, request=None, result=None, error=None):
+        self.type = type
+        self.status = status
+        self.request = request
+        self.result = result
+        self.error = error
 
 @dataclass
 class Message:

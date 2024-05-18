@@ -115,41 +115,12 @@ class MainController:
             return event
         if event.type == ApplicationEventType.SYNTHESIZE:
             return ApplicationEvent(
-                type=ApplicationEventType.PLAY,
-                request=event.result
-            )
-        if event.type == ApplicationEventType.PLAY:
-            return ApplicationEvent(
-                type=ApplicationEventType.LISTEN,
-            )
-        if event.type == ApplicationEventType.LISTEN:
-            return self.handle_detected_word(event.result)
-        if event.type == ApplicationEventType.TRANSCRIBE:
-            print(f"Transcription result: '{event.result}'")
-            return ApplicationEvent(
-                type=ApplicationEventType.AI_INTERACT,
-                request=event.result
-            )
-        if event.type == ApplicationEventType.GET_SNAPSHOT:
-            print(f"Snapshot Result: '{event.result}'")
-            return ApplicationEvent(
-                type=ApplicationEventType.AI_INTERACT,
-                request=event.result
-            )
-        if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
-            return self.handle_ai_result(event.result)
-        if isinstance(event, Message):
-            print(f"Processing message: {event.id}, {event.role}, {event.content}")
-            return ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
-                request=event.content
+                status=ProcessingStatus.SUCCESS,
+                result=event.result
             )
-        else:
-            raise ValueError("Unknown result type")
-        return ApplicationEvent(
-            type=ApplicationEventType.EXIT,
-            result="Unhandled event type"
-        )
+        # Add more event types as needed
+        return event
     
     def handle_ai_result(self, result: AssitsantResult):
         if result.status == AssistantResultStatus.SUCCESS:
