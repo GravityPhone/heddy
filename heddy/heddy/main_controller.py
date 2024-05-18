@@ -47,6 +47,7 @@ class MainController:
         print("MainController initialized")
 
     def process_event(self, event: ApplicationEvent):
+        print(f"Processing event: {event}")
         if event.type == ApplicationEventType.START:
             return ApplicationEvent(
                 ApplicationEventType.SYNTHESIZE,
@@ -78,6 +79,7 @@ class MainController:
         if event.type == ApplicationEventType.TRANSCRIBE:
             transcription_result = self.transcriber.transcribe_audio_file(event)
             transcription_text = transcription_result.result
+            print(f"Transcription result: {transcription_text}")
 
             if self.snapshot_taken:
                 file_id = self.snapshot_file_id
@@ -108,7 +110,7 @@ class MainController:
             return ZapierManager().handle_message(event)
 
     def process_result(self, event: ApplicationEvent):
-        print(event.type, event.status, event.result)
+        print(f"Processing result: {event.type}, {event.status}, {event.result}")
         if event.status == ProcessingStatus.INIT:
             return event
         if event.type == ApplicationEventType.SYNTHESIZE:
