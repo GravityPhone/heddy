@@ -68,9 +68,7 @@ class ThreadManager:
             message_content = [
                 {
                     "type": "text",
-                    "text": {
-                        "value": content
-                    }
+                    "text": content  # Directly assign the content string here
                 }
             ]
             attachments = []
