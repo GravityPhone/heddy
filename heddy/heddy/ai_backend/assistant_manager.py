@@ -220,14 +220,9 @@ class StreamingManager:
         if event.type == ApplicationEventType.AI_INTERACT:
             self.text = ""
             self.thread_manager.add_message_to_thread(content)
-            manager = openai.beta.threads.runs.create_and_stream(
+            manager = openai.beta.threads.runs.create_and_poll(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                messages=[{
-                    "role": "user",
-                    "content": [{"type": "text", "text": {"value": content}}],
-                    "attachments": []  # Add attachments if necessary
-                }],
                 stream=True
             )
             return self.handle_stream(manager)
@@ -270,4 +265,5 @@ class StreamingManager:
             print(f"Message content: {message}")
         except Exception as e:
             print(f"Failed to add message to thread: {e}")
+
 
