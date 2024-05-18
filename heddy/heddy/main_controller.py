@@ -219,6 +219,9 @@ class MainController:
                 self.audio_player.play_sound("listening.wav")  # Play start listening sound
             result = self.process_event(current_event)
 
+            if result is None:
+                raise RuntimeError("Processing event returned None")
+
             if event.status == ProcessingStatus.ERROR:
                 raise RuntimeError(event.error)
             
