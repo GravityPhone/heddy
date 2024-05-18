@@ -239,7 +239,7 @@ class StreamingManager:
             })
 
         try:
-            response = self.client.beta.threads.runs.create(
+            response = self.openai_client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
                 messages=[{
