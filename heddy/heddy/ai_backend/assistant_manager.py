@@ -228,25 +228,23 @@ class StreamingManager:
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
 
-        content = [{
+        content = {
             "type": "text",
             "text": event.request.get("transcription_text")
-        }]
+        }
         attachments = []
         if event.request.get("snapshot_file_id"):
             attachments.append({
-                "file_id": event.request.get("snapshot_file_id")
+                "file_id": event.request.get("snapshot_file_id"),
+                "tools": [{"type": "file_search"}, {"type": "code_interpreter"}]
             })
 
         try:
             response = self.openai_client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                messages=[{
-                    "role": "user",
-                    "content": content,
-                    "attachments": attachments
-                }]
+                content=[content],
+                attachments=attachments
             )
             return response
         except Exception as e:
