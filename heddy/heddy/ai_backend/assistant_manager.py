@@ -233,7 +233,7 @@ class StreamingManager:
         if event.request.get("snapshot_file_id"):
             attachments.append({
                 "file_id": event.request.get("snapshot_file_id"),
-                "tools": [{"type": "file_search"}, {"type": "code_interpreter"}]
+                
             })
         print(f"Constructed attachments: {attachments}")
 
