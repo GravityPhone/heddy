@@ -251,18 +251,19 @@ class StreamingManager:
         message_content = []
         if text:
             message_content.append({"type": "text", "text": {"value": text}})
-        message_content.append({
-            "type": "image_file", 
-            "image_file": {"file_id": file_id},
-            "tools": [
-                {"type": "file_search"},
-                {"type": "code_interpreter"}
-            ]
-        })
         
         message = {
             "role": "user",
-            "content": message_content
+            "content": message_content,
+            "attachments": [
+                {
+                    "file_id": file_id,
+                    "tools": [
+                        {"type": "file_search"},
+                        {"type": "code_interpreter"}
+                    ]
+                }
+            ]
         }
         
         try:
