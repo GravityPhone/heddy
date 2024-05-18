@@ -252,7 +252,13 @@ class StreamingManager:
                 content=content
             )
             print(f"Message added to thread: {message}")
-            return message
+            run = self.openai_client.beta.threads.runs.create_and_stream(
+                thread_id=self.thread_manager.thread_id,
+                model=self.assistant_id,
+                messages=[message]
+            )
+            print(f"Run initiated on thread: {self.thread_manager.thread_id}")
+            return run
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
             return None
