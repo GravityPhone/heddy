@@ -132,6 +132,7 @@ class StreamingManager:
         self.assistant_id = assistant_id
         self.openai_client = openai_client or openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.event_handler = None
+        self.text = ""  # Initialize the text attribute
 
     def set_event_handler(self, event_handler):
         self.event_handler = event_handler
