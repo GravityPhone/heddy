@@ -100,8 +100,8 @@ class MainController:
                 ))
             else:
                 return ApplicationEvent(
-                    type=ApplicationEventType.SYNTHESIZE,
-                    request=transcription_text
+                    type=ApplicationEventType.AI_INTERACT,  # Change to AI_INTERACT
+                    request={"transcription_text": transcription_text}
                 )
         if event.type == ApplicationEventType.GET_SNAPSHOT:
             return self.get_snapshot(event)
