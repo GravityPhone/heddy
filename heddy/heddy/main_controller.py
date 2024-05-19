@@ -54,7 +54,11 @@ class MainController:
                 request='Hello! How can I assist you today?'
             )
         if event.type == ApplicationEventType.SYNTHESIZE:
-            return self.synthesizer.synthesize(event)
+            synthesized_event = self.synthesizer.synthesize(event)
+            return ApplicationEvent(
+                type=ApplicationEventType.PLAY,  # Transition to the next event type
+                request=synthesized_event.result
+            )
         if event.type == ApplicationEventType.PLAY:
             return self.audio_player.play(event)
         if event.type == ApplicationEventType.LISTEN:
