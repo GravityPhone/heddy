@@ -66,7 +66,8 @@ class MainController:
                 request=play_event.result
             )
         if event.type == ApplicationEventType.LISTEN:
-            return self.word_detector.listen(event)
+            detected_word_event = self.word_detector.listen(event)
+            return self.handle_detected_word(detected_word_event.result)
         if event.type == ApplicationEventType.START_RECORDING:
             self.audio_player.play_sound("startrecording.wav")  # Play start recording sound
             self.start_recording()
