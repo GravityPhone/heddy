@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
-from traitlets import Any
 
 class ApplicationEventType(Enum):
     START = "start"
@@ -14,13 +13,13 @@ class ProcessingStatus(Enum):
     SUCCESS = "success"
     ERROR = "error"
 
+@dataclass
 class ApplicationEvent:
-    def __init__(self, type, status=ProcessingStatus.INIT, request=None, result=None, error=None):
-        self.type = type
-        self.status = status
-        self.request = request
-        self.result = result
-        self.error = error
+    type: ApplicationEventType
+    status: ProcessingStatus = ProcessingStatus.INIT
+    request: Optional[dict] = None
+    result: Optional[dict] = None
+    error: Optional[str] = None
 
 @dataclass
 class Message:

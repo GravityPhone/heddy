@@ -196,13 +196,13 @@ class StreamingManager:
             for event in stream:
                 if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
                     delta = event.data.delta.content[0].text.value
-                    self.text +=  delta if delta is not None else ""
+                    self.text += delta if delta is not None else ""
                     continue
                 if isinstance(event, ThreadRunRequiresAction):
                     print("ActionRequired")
                     return AssitsantResult(
                         calls=self.resolve_calls(event),
-                        status=AssistantResultStatus.ACTION_REQUIED
+                        status=AssistantResultStatus.ACTION_REQUIRED
                     )
                 if isinstance(event, ThreadRunCompleted):
                     print("\nInteraction completed.")
@@ -256,8 +256,14 @@ class StreamingManager:
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id
             )
-            print(f"Run initiated on thread: {self.thread_manager.thread_id}")
-            return run
+            result = self.handle_stream(run)
+            if result.status == AssistantResultStatus.ERROR:
+                event.status = ProcessingStatus.ERROR
+                event.error = result.error
+            else:
+                event.status = ProcessingStatus.SUCCESS
+                event.result = result
+            return event
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
             return None
