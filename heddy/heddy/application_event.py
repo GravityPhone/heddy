@@ -12,6 +12,7 @@ class ApplicationEventType(Enum):
     START_RECORDING = "start_recording"
     STOP_RECORDING = "stop_recording"
     USE_SNAPSHOT = "use_snapshot"
+    TRANSCRIBE = "transcribe"
     EXIT = "exit"
 
 class ProcessingStatus(Enum):
