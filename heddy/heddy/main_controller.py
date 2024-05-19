@@ -60,7 +60,11 @@ class MainController:
                 request=synthesized_event.result
             )
         if event.type == ApplicationEventType.PLAY:
-            return self.audio_player.play(event)
+            play_event = self.audio_player.play(event)
+            return ApplicationEvent(
+                type=ApplicationEventType.LISTEN,  # Transition to the next event type
+                request=play_event.result
+            )
         if event.type == ApplicationEventType.LISTEN:
             return self.word_detector.listen(event)
         if event.type == ApplicationEventType.START_RECORDING:
