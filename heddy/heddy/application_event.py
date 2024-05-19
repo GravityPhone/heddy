@@ -8,8 +8,11 @@ class ApplicationEventType(Enum):
     AI_INTERACT = "ai_interact"
     AI_TOOL_RETURN = "ai_tool_return"
     PLAY = "play"
-    LISTEN = "listen"  # Added this line
-    EXIT = "exit"  # Added this line
+    LISTEN = "listen"
+    START_RECORDING = "start_recording"
+    STOP_RECORDING = "stop_recording"
+    USE_SNAPSHOT = "use_snapshot"
+    EXIT = "exit"
 
 class ProcessingStatus(Enum):
     INIT = "init"
