@@ -7,7 +7,8 @@ class ApplicationEventType(Enum):
     SYNTHESIZE = "synthesize"
     AI_INTERACT = "ai_interact"
     AI_TOOL_RETURN = "ai_tool_return"
-    PLAY = "play"  # Added this line
+    PLAY = "play"
+    LISTEN = "listen"  # Added this line
     EXIT = "exit"  # Added this line
 
 class ProcessingStatus(Enum):
