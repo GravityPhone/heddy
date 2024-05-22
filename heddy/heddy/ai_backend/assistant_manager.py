@@ -192,35 +192,34 @@ class StreamingManager:
             thread_id=result["thread_id"]
         )
     
-    def handle_stream(self, streaming_manager):
-        with streaming_manager as stream:
-            for event in stream:
-                if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
-                    delta = event.data.delta.content[0].text.value
-                    self.text += delta if delta is not None else ""
-                    continue
-                if isinstance(event, ThreadRunRequiresAction):
-                    print("ActionRequired")
-                    return AssitsantResult(
-                        calls=self.resolve_calls(event),
-                        status=AssistantResultStatus.ACTION_REQUIRED
-                    )
-                if isinstance(event, ThreadRunCompleted):
-                    print("\nInteraction completed.")
-                    self.thread_manager.interaction_in_progress = False
-                    self.thread_manager.end_of_interaction()
-                    return AssitsantResult(
-                        response=self.text,
-                        status=AssistantResultStatus.SUCCESS
-                    )
-                if isinstance(event, ThreadRunFailed):
-                    print("\nInteraction failed.")
-                    self.thread_manager.interaction_in_progress = False
-                    self.thread_manager.end_of_interaction()
-                    return AssitsantResult(
-                        error="Generic OpenAI Error",
-                        status=AssistantResultStatus.ERROR
-                    )
+    def handle_stream(self, run):
+        for event in self.openai_client.beta.threads.runs.stream(run.id):
+            if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
+                delta = event.data.delta.content[0].text.value
+                self.text += delta if delta is not None else ""
+                continue
+            if isinstance(event, ThreadRunRequiresAction):
+                print("ActionRequired")
+                return AssitsantResult(
+                    calls=self.resolve_calls(event),
+                    status=AssistantResultStatus.ACTION_REQUIRED
+                )
+            if isinstance(event, ThreadRunCompleted):
+                print("\nInteraction completed.")
+                self.thread_manager.interaction_in_progress = False
+                self.thread_manager.end_of_interaction()
+                return AssitsantResult(
+                    response=self.text,
+                    status=AssistantResultStatus.SUCCESS
+                )
+            if isinstance(event, ThreadRunFailed):
+                print("\nInteraction failed.")
+                self.thread_manager.interaction_in_progress = False
+                self.thread_manager.end_of_interaction()
+                return AssitsantResult(
+                    error="Generic OpenAI Error",
+                    status=AssistantResultStatus.ERROR
+                )
 
     def handle_streaming_interaction(self, event: ApplicationEvent):
         if not self.assistant_id:
