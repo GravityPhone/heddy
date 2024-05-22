@@ -253,11 +253,13 @@ class StreamingManager:
                 content=content
             )
             print(f"Message added to thread: {message}")
-            run = self.openai_client.beta.threads.runs.create_and_stream(
+            
+            # Ensure the thread run is created and streamed
+            run = self.openai_client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id
             )
-            result = self.handle_stream(run)
+            result = self.handle_stream(self.openai_client.beta.threads.runs.stream(run.id))
             if result.status == AssistantResultStatus.ERROR:
                 event.status = ProcessingStatus.ERROR
                 event.error = result.error
