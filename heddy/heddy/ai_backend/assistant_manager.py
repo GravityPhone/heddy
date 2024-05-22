@@ -262,7 +262,11 @@ class StreamingManager:
             return AssitsantResult(
                 error=str(e),
                 status=AssistantResultStatus.ERROR
-            )
+            ):,
 
-
+    def handle_stream(self, manager):
+        for message in manager:
+            if message['role'] == 'assistant':
+                audio_result = self.eleven_labs_manager(message['content'])
+                self.audio_player.play(audio_result)
 
