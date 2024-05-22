@@ -219,12 +219,10 @@ class StreamingManager:
     def handle_stream(self, manager):
         for message in manager:
             if message['role'] == 'assistant':
-                audio_result = self.eleven_labs_manager(message['content'])
-                print(f"Playing audio with Eleven Labs: {message['content']}")
-                self.audio_player.play(audio_result)
+                print(f"Triggering SYNTHESIZE event with message: {message['content']}")
                 return ApplicationEvent(
-                    type=ApplicationEventType.PLAY,
-                    request=audio_result
+                    type=ApplicationEventType.SYNTHESIZE,
+                    request=message['content']
                 )
     
     def handle_streaming_interaction(self, event: ApplicationEvent):
@@ -268,8 +266,12 @@ class StreamingManager:
                 manager = stream  # Ensure manager is assigned
 
             result = self.handle_stream(manager)
-            if result and result.type == ApplicationEventType.PLAY:
-                return ApplicationEvent(ApplicationEventType.LISTEN)
+            if result and result.type == ApplicationEventType.SYNTHESIZE:
+                synthesized_event = self.synthesizer.synthesize(result)
+                return ApplicationEvent(
+                    type=ApplicationEventType.PLAY,
+                    request=synthesized_event.result
+                )
             return result
 
         except Exception as e:
