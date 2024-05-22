@@ -192,35 +192,6 @@ class StreamingManager:
             thread_id=result["thread_id"]
         )
     
-    def handle_stream(self, run):
-        for event in self.openai_client.beta.threads.runs.stream(run.id):
-            if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
-                delta = event.data.delta.content[0].text.value
-                self.text += delta if delta is not None else ""
-                continue
-            if isinstance(event, ThreadRunRequiresAction):
-                print("ActionRequired")
-                return AssitsantResult(
-                    calls=self.resolve_calls(event),
-                    status=AssistantResultStatus.ACTION_REQUIRED
-                )
-            if isinstance(event, ThreadRunCompleted):
-                print("\nInteraction completed.")
-                self.thread_manager.interaction_in_progress = False
-                self.thread_manager.end_of_interaction()
-                return AssitsantResult(
-                    response=self.text,
-                    status=AssistantResultStatus.SUCCESS
-                )
-            if isinstance(event, ThreadRunFailed):
-                print("\nInteraction failed.")
-                self.thread_manager.interaction_in_progress = False
-                self.thread_manager.end_of_interaction()
-                return AssitsantResult(
-                    error="Generic OpenAI Error",
-                    status=AssistantResultStatus.ERROR
-                )
-
     def handle_streaming_interaction(self, event: ApplicationEvent):
         if not self.assistant_id:
             print("Assistant ID is not set.")
@@ -253,27 +224,40 @@ class StreamingManager:
             )
             print(f"Message added to thread: {message}")
 
-            # Ensure the thread run is created
             run = self.openai_client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id
             )
             print(f"Run created: {run}")
 
-            # Process the run result directly
-            result = self.handle_stream(run)
-            if result.status == AssistantResultStatus.ERROR:
-                event.status = ProcessingStatus.ERROR
-                event.error = result.error
-            else:
-                event.status = ProcessingStatus.SUCCESS
-                event.result = result.response
-                # Trigger the next event to play the response with ElevenLabs
-                play_event = ApplicationEvent(
-                    type=ApplicationEventType.PLAY,
-                    request=result.response
-                )
-                return self.event_handler(play_event)
+            for event in self.openai_client.beta.threads.runs.stream(run.id):
+                if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
+                    delta = event.data.delta.content[0].text.value
+                    self.text += delta if delta is not None else ""
+                    continue
+                if isinstance(event, ThreadRunRequiresAction):
+                    print("ActionRequired")
+                    return AssitsantResult(
+                        calls=self.resolve_calls(event),
+                        status=AssistantResultStatus.ACTION_REQUIRED
+                    )
+                if isinstance(event, ThreadRunCompleted):
+                    print("\nInteraction completed.")
+                    self.thread_manager.interaction_in_progress = False
+                    self.thread_manager.end_of_interaction()
+                    return AssitsantResult(
+                        response=self.text,
+                        status=AssistantResultStatus.SUCCESS
+                    )
+                if isinstance(event, ThreadRunFailed):
+                    print("\nInteraction failed.")
+                    self.thread_manager.interaction_in_progress = False
+                    self.thread_manager.end_of_interaction()
+                    return AssitsantResult(
+                        error="Generic OpenAI Error",
+                        status=AssistantResultStatus.ERROR
+                    )
+
             return event
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
@@ -281,5 +265,4 @@ class StreamingManager:
                 error=str(e),
                 status=AssistantResultStatus.ERROR
             )
-
 
