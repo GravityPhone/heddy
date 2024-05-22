@@ -216,6 +216,17 @@ class StreamingManager:
             thread_id=result["thread_id"]
         )
     
+    def handle_stream(self, manager):
+        for message in manager:
+            if message['role'] == 'assistant':
+                audio_result = self.eleven_labs_manager(message['content'])
+                self.audio_player.play(audio_result)
+                print(f"Triggering PLAY event with audio result: {audio_result}")
+                return ApplicationEvent(
+                    type=ApplicationEventType.PLAY,
+                    request=audio_result
+                )
+    
     def handle_streaming_interaction(self, event: ApplicationEvent):
         if not self.assistant_id:
             print("Assistant ID is not set.")
@@ -257,6 +268,8 @@ class StreamingManager:
                 manager = stream  # Ensure manager is assigned
 
             result = self.handle_stream(manager)
+            if result.type == ApplicationEventType.PLAY:
+                return ApplicationEvent(ApplicationEventType.LISTEN)
             return result
 
         except Exception as e:
@@ -265,15 +278,4 @@ class StreamingManager:
                 error=str(e),
                 status=AssistantResultStatus.ERROR
             )
-    
-    def handle_stream(self, manager):
-        for message in manager:
-            if message['role'] == 'assistant':
-                audio_result = self.eleven_labs_manager(message['content'])
-                self.audio_player.play(audio_result)
-                print(f"Triggering PLAY event with audio result: {audio_result}")
-                return ApplicationEvent(
-                    type=ApplicationEventType.PLAY,
-                    request=audio_result
-                )
 
