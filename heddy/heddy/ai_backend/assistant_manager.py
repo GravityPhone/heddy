@@ -17,6 +17,7 @@ from openai.types.beta.assistant_stream_event import (
     ThreadRunStepCancelled, ThreadRunStepDelta)
 from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
+from typing_extensions import override
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -115,7 +116,7 @@ class ThreadManager:
             self.reset_timer.cancel()
         
         # Create and start a new timer
-        self.reset_timer = threading.Timer(180, reset)
+        self.reset_timer = threading.Timer(90, reset)
         self.reset_timer.start()
 
     def end_of_interaction(self):
@@ -124,6 +125,28 @@ class ThreadManager:
 
 
 
+
+class EventHandler(AssistantEventHandler):
+    @override
+    def on_text_created(self, text) -> None:
+        print(f"\nassistant > ", end="", flush=True)
+      
+    @override
+    def on_text_delta(self, delta, snapshot):
+        print(delta.value, end="", flush=True)
+      
+    def on_tool_call_created(self, tool_call):
+        print(f"\nassistant > {tool_call.type}\n", flush=True)
+  
+    def on_tool_call_delta(self, delta, snapshot):
+        if delta.type == 'code_interpreter':
+            if delta.code_interpreter.input:
+                print(delta.code_interpreter.input, end="", flush=True)
+            if delta.code_interpreter.outputs:
+                print(f"\n\noutput >", flush=True)
+                for output in delta.code_interpreter.outputs:
+                    if output.type == "logs":
+                        print(f"\n{output.logs}", flush=True)
 
 class StreamingManager:
     def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
@@ -217,52 +240,29 @@ class StreamingManager:
         print(f"Constructed content: {content}")
 
         try:
-            message = self.openai_client.beta.threads.messages.create(
-                thread_id=self.thread_manager.thread_id,
-                role="user",
-                content=content
-            )
-            print(f"Message added to thread: {message}")
+            if event.type == ApplicationEventType.AI_TOOL_RETURN:
+                manager = self.submit_tool_calls_and_stream(event.request)
+            else:
+                content = content[0]["text"]
+                self.text = ""
+                self.thread_manager.add_message_to_thread(content)
+                
+                with self.openai_client.beta.threads.runs.stream(
+                    thread_id=self.thread_manager.thread_id,
+                    assistant_id=self.assistant_id,
+                    event_handler=EventHandler(),
+                ) as stream:
+                    stream.until_done()
 
-            run = self.openai_client.beta.threads.runs.create(
-                thread_id=self.thread_manager.thread_id,
-                assistant_id=self.assistant_id
-            )
-            print(f"Run created: {run}")
+            result = self.handle_stream(manager)
+            return result
 
-            for event in self.openai_client.beta.threads.runs.stream(run.id):
-                if isinstance(event, ThreadMessageDelta) and event.data.delta.content:
-                    delta = event.data.delta.content[0].text.value
-                    self.text += delta if delta is not None else ""
-                    continue
-                if isinstance(event, ThreadRunRequiresAction):
-                    print("ActionRequired")
-                    return AssitsantResult(
-                        calls=self.resolve_calls(event),
-                        status=AssistantResultStatus.ACTION_REQUIRED
-                    )
-                if isinstance(event, ThreadRunCompleted):
-                    print("\nInteraction completed.")
-                    self.thread_manager.interaction_in_progress = False
-                    self.thread_manager.end_of_interaction()
-                    return AssitsantResult(
-                        response=self.text,
-                        status=AssistantResultStatus.SUCCESS
-                    )
-                if isinstance(event, ThreadRunFailed):
-                    print("\nInteraction failed.")
-                    self.thread_manager.interaction_in_progress = False
-                    self.thread_manager.end_of_interaction()
-                    return AssitsantResult(
-                        error="Generic OpenAI Error",
-                        status=AssistantResultStatus.ERROR
-                    )
-
-            return event
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
             return AssitsantResult(
                 error=str(e),
                 status=AssistantResultStatus.ERROR
             )
+
+
 
