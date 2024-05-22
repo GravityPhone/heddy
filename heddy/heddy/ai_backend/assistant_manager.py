@@ -254,6 +254,7 @@ class StreamingManager:
                     event_handler=EventHandler(),
                 ) as stream:
                     stream.until_done()
+                manager = stream  # Ensure manager is assigned
 
             result = self.handle_stream(manager)
             return result
