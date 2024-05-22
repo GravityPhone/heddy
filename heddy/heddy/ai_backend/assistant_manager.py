@@ -259,7 +259,7 @@ class StreamingManager:
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id
             )
-            result = self.handle_stream(self.openai_client.beta.threads.runs.stream(run.id))
+            result = self.handle_stream(self.openai_client.beta.threads.runs.stream(run_id=run.id))
             if result.status == AssistantResultStatus.ERROR:
                 event.status = ProcessingStatus.ERROR
                 event.error = result.error
