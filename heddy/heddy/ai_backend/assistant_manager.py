@@ -18,6 +18,7 @@ from openai.types.beta.assistant_stream_event import (
 from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
 from typing_extensions import override
+from openai import AssistantEventHandler
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -262,8 +263,8 @@ class StreamingManager:
             return AssitsantResult(
                 error=str(e),
                 status=AssistantResultStatus.ERROR
-            ):,
-
+            )
+    
     def handle_stream(self, manager):
         for message in manager:
             if message['role'] == 'assistant':
