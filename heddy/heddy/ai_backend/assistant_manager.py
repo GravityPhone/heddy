@@ -253,7 +253,7 @@ class StreamingManager:
                 content=content
             )
             print(f"Message added to thread: {message}")
-            
+
             # Ensure the thread run is created and streamed
             run = self.openai_client.beta.threads.runs.create(
                 thread_id=self.thread_manager.thread_id,
@@ -265,7 +265,13 @@ class StreamingManager:
                 event.error = result.error
             else:
                 event.status = ProcessingStatus.SUCCESS
-                event.result = result
+                event.result = result.response
+                # Trigger the next event to play the response with ElevenLabs
+                play_event = ApplicationEvent(
+                    type=ApplicationEventType.PLAY,
+                    request=result.response
+                )
+                return self.event_handler(play_event)
             return event
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
