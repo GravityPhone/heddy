@@ -114,7 +114,8 @@ class MainController:
                 ))
                 self.snapshot_taken = False
                 self.snapshot_file_id = None
-            return self.assistant.handle_streaming_interaction(event)
+            self.assistant.handle_streaming_interaction(event)
+            return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
 
