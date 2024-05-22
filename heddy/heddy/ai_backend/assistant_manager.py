@@ -271,6 +271,7 @@ class StreamingManager:
             if message['role'] == 'assistant':
                 audio_result = self.eleven_labs_manager(message['content'])
                 self.audio_player.play(audio_result)
+                print(f"Triggering PLAY event with audio result: {audio_result}")
                 return ApplicationEvent(
                     type=ApplicationEventType.PLAY,
                     request=audio_result
