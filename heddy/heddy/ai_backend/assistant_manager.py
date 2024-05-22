@@ -268,7 +268,7 @@ class StreamingManager:
                 manager = stream  # Ensure manager is assigned
 
             result = self.handle_stream(manager)
-            if result.type == ApplicationEventType.PLAY:
+            if result and result.type == ApplicationEventType.PLAY:
                 return ApplicationEvent(ApplicationEventType.LISTEN)
             return result
 
