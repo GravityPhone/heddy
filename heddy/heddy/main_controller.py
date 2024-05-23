@@ -58,6 +58,7 @@ class MainController:
             if synthesized_event is None:
                 raise RuntimeError("Synthesize returned None")
             print(f"Synthesized event: {synthesized_event}")
+            print("Triggering PLAY event")
             return ApplicationEvent(
                 type=ApplicationEventType.PLAY,  # Transition to PLAY
                 request=synthesized_event.result
@@ -67,6 +68,7 @@ class MainController:
             if play_event is None:
                 raise RuntimeError("Play returned None")
             print(f"Play event: {play_event}")
+            print("Triggering LISTEN event")
             return ApplicationEvent(
                 type=ApplicationEventType.LISTEN,  # Transition to LISTEN
                 request=play_event.result
@@ -133,7 +135,7 @@ class MainController:
         return event
     
     def process_result(self, event: ApplicationEvent):
-        print(f"Processing result: {event.type}, {event.status}, {event.result}")
+        print("MainController - Processing result: {event.type}, {event.status}, {event.result}")
         if event.status == ProcessingStatus.INIT:
             return event
         if event.type == ApplicationEventType.SYNTHESIZE:
