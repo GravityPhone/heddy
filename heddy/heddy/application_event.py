@@ -13,7 +13,7 @@ class ApplicationEventType(Enum):
     STOP_RECORDING = "stop_recording"
     USE_SNAPSHOT = "use_snapshot"
     TRANSCRIBE = "transcribe"
-    GET_SNAPSHOT = "get_snapshot"  # Added this line
+    GET_SNAPSHOT = "get_snapshot"
     EXIT = "exit"
 
 class ProcessingStatus(Enum):

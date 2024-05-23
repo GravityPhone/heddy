@@ -268,13 +268,7 @@ class StreamingManager:
             result = self.handle_stream(manager)
             if result:
                 result.type = ApplicationEventType.SYNTHESIZE  # Ensure the event type is set to SYNTHESIZE
-                synthesized_event = self.synthesizer.synthesize(result)
-                play_event = self.audio_player.play(synthesized_event)
-                return ApplicationEvent(
-                    type=ApplicationEventType.SYNTHESIZE,
-                    request=play_event.result
-                )
-            return result
+                return result  # Return the result to be processed by MainController
 
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
@@ -282,6 +276,7 @@ class StreamingManager:
                 error=str(e),
                 status=AssistantResultStatus.ERROR
             )
+
 
 
 

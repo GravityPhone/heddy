@@ -56,13 +56,13 @@ class MainController:
         if event.type == ApplicationEventType.SYNTHESIZE:
             synthesized_event = self.synthesizer.synthesize(event)
             return ApplicationEvent(
-                type=ApplicationEventType.PLAY,  # Transition to the next event type
+                type=ApplicationEventType.PLAY,  # Transition to PLAY
                 request=synthesized_event.result
             )
         if event.type == ApplicationEventType.PLAY:
             play_event = self.audio_player.play(event)
             return ApplicationEvent(
-                type=ApplicationEventType.LISTEN,  # Transition to the next event type
+                type=ApplicationEventType.LISTEN,  # Transition to LISTEN
                 request=play_event.result
             )
         if event.type == ApplicationEventType.LISTEN:
@@ -114,7 +114,9 @@ class MainController:
                 ))
                 self.snapshot_taken = False
                 self.snapshot_file_id = None
-            self.assistant.handle_streaming_interaction(event)
+            result = self.assistant.handle_streaming_interaction(event)
+            if result.type == ApplicationEventType.SYNTHESIZE:
+                return result  # Return the SYNTHESIZE event to be processed
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
