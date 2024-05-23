@@ -128,26 +128,33 @@ class ThreadManager:
 
 
 class EventHandler(AssistantEventHandler):
+    def __init__(self, streaming_manager):
+        self.streaming_manager = streaming_manager
+
     @override
     def on_text_created(self, text) -> None:
         print(f"\nassistant > ", end="", flush=True)
-      
+        self.streaming_manager.response_text += text  # Store the initial text
+
     @override
     def on_text_delta(self, delta, snapshot):
         print(delta.value, end="", flush=True)
-      
+        self.streaming_manager.response_text += delta.value  # Append the delta value to the response text
+
     def on_tool_call_created(self, tool_call):
         print(f"\nassistant > {tool_call.type}\n", flush=True)
-  
+
     def on_tool_call_delta(self, delta, snapshot):
         if delta.type == 'code_interpreter':
             if delta.code_interpreter.input:
                 print(delta.code_interpreter.input, end="", flush=True)
+                self.streaming_manager.response_text += delta.code_interpreter.input  # Append the input to the response text
             if delta.code_interpreter.outputs:
                 print(f"\n\noutput >", flush=True)
                 for output in delta.code_interpreter.outputs:
                     if output.type == "logs":
                         print(f"\n{output.logs}", flush=True)
+                        self.streaming_manager.response_text += output.logs  # Append the logs to the response text
 
 class StreamingManager:
     def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
@@ -157,6 +164,7 @@ class StreamingManager:
         self.openai_client = openai_client or openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.event_handler = None
         self.text = ""  # Initialize the text attribute
+        self.response_text = ""  # Add this attribute to store the response text
 
     def set_event_handler(self, event_handler):
         self.event_handler = event_handler
@@ -220,12 +228,13 @@ class StreamingManager:
         response_content = ""
         try:
             for message in manager:
+                print(f"Received message: {message}")
                 if message['role'] == 'assistant':
                     response_content += message['content']
                     print(f"Appending message content: {message['content']}")
             if response_content:
                 print(f"Triggering SYNTHESIZE event with message: {response_content}")
-                return response_content
+                return response_content  # Return the response content directly
             else:
                 print("No content received from stream.")
                 return None
@@ -241,15 +250,18 @@ class StreamingManager:
             self.thread_manager.create_thread()
 
         content = self.construct_content(event)  # Method to construct content based on event
+        print(f"Constructed content: {content}")
 
         try:
+            self.response_text = ""  # Reset the response text at the beginning of the interaction
+            self.set_event_handler(EventHandler(self))  # Initialize EventHandler with StreamingManager instance
             with self.openai_client.beta.threads.runs.stream(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                event_handler=EventHandler(),
+                event_handler=self.event_handler,
             ) as stream:
                 stream.until_done()
-            result = self.handle_stream(stream)  # Directly process the stream output
+            result = self.response_text  # Use the stored response text
 
             print(f"Result from handle_stream: {result}")
             if result:
@@ -284,6 +296,6 @@ class StreamingManager:
                 "image_file": {"file_id": event.request.get("snapshot_file_id"), "detail": "high"}
             })
 
+        print(f"Constructed content: {content}")
         return content
-
 
