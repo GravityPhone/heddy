@@ -159,13 +159,13 @@ class MainController:
             if self.snapshot_file_id:
                 message_content["attachments"] = [{"file_id": self.snapshot_file_id}]
             
-            message = self.thread_manager.add_message(
+            self.thread_manager.add_message(
                 thread_id=self.thread_manager.thread_id,
                 **message_content
             )
             
             # Run the assistant on the thread
-            run = self.thread_manager.run_assistant(
+            self.thread_manager.run_assistant(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id
             )
@@ -292,5 +292,4 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
-
 
