@@ -129,6 +129,7 @@ class ThreadManager:
 
 class EventHandler(AssistantEventHandler):
     def __init__(self, streaming_manager):
+        super().__init__()  # Ensure the base class is properly initialized
         self.streaming_manager = streaming_manager
 
     @override
@@ -141,9 +142,11 @@ class EventHandler(AssistantEventHandler):
         print(delta.value, end="", flush=True)
         self.streaming_manager.response_text += delta.value  # Append the delta value to the response text
 
+    @override
     def on_tool_call_created(self, tool_call):
         print(f"\nassistant > {tool_call.type}\n", flush=True)
 
+    @override
     def on_tool_call_delta(self, delta, snapshot):
         if delta.type == 'code_interpreter':
             if delta.code_interpreter.input:
