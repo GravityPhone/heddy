@@ -159,9 +159,9 @@ class MainController:
             if self.snapshot_file_id:
                 message_content["attachments"] = [{"file_id": self.snapshot_file_id}]
             
-            self.thread_manager.add_message(
-                thread_id=self.thread_manager.thread_id,
-                **message_content
+            self.thread_manager.add_message_to_thread(
+                content=message_content["content"],
+                snapshot_file_id=self.snapshot_file_id
             )
             
             # Run the assistant on the thread
