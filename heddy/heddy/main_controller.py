@@ -37,7 +37,8 @@ class MainController:
             synthesizer,
             audio_player,
             vision_module,
-            word_detector
+            word_detector,
+            thread_manager  # Add thread_manager as a parameter
         ) -> None:
         self.assistant = assistant
         self.transcriber = transcriber
@@ -45,6 +46,7 @@ class MainController:
         self.vision_module = vision_module
         self.audio_player = audio_player
         self.word_detector = word_detector
+        self.thread_manager = thread_manager  # Initialize thread_manager
         print("MainController initialized")
 
     def process_event(self, event: ApplicationEvent):
@@ -270,10 +272,10 @@ class MainController:
 def initialize():
     load_dotenv()
     print("System initializing...")
-    # Initialize OpenAI client ok computer send a little zapier tick please reply
+    # Initialize OpenAI client
     openai_client = openai.OpenAI(
         api_key=os.getenv("OPENAI_API_KEY")
-    ) # This line initializes openai_client with the openai library itself
+    )
 
     # Initialize modules with provided API keys
     assemblyai_transcriber = AssemblyAITranscriber(api_key=os.getenv("ASSEMBLYAI_API_KEY"))
@@ -293,12 +295,12 @@ def initialize():
         vision_module=vision_module,
         audio_player=AudioPlayer(),
         word_detector=word_detector,
-        synthesizer=TTSManager(eleven_labs_manager)
+        synthesizer=TTSManager(eleven_labs_manager),
+        thread_manager=thread_manager  # Pass thread_manager to MainController
     )
 
 if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
-
 
