@@ -266,11 +266,13 @@ class StreamingManager:
                 manager = stream  # Ensure manager is assigned
 
             result = self.handle_stream(manager)
-            if result and result.type == ApplicationEventType.SYNTHESIZE:
+            if result:
+                result.type = ApplicationEventType.SYNTHESIZE  # Ensure the event type is set to SYNTHESIZE
                 synthesized_event = self.synthesizer.synthesize(result)
+                play_event = self.audio_player.play(synthesized_event)
                 return ApplicationEvent(
-                    type=ApplicationEventType.PLAY,
-                    request=synthesized_event.result
+                    type=ApplicationEventType.SYNTHESIZE,
+                    request=play_event.result
                 )
             return result
 
@@ -280,4 +282,7 @@ class StreamingManager:
                 error=str(e),
                 status=AssistantResultStatus.ERROR
             )
+
+
+
 
