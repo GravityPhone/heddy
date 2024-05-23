@@ -217,13 +217,21 @@ class StreamingManager:
         )
     
     def handle_stream(self, manager):
+        response_content = ""
         for message in manager:
             if message['role'] == 'assistant':
-                print(f"Triggering SYNTHESIZE event with message: {message['content']}")
-                return ApplicationEvent(
-                    type=ApplicationEventType.SYNTHESIZE,
-                    request=message['content']
-                )
+                response_content += message['content']
+                print(f"Appending message content: {message['content']}")
+
+        if response_content:
+            print(f"Triggering SYNTHESIZE event with message: {response_content}")
+            return ApplicationEvent(
+                type=ApplicationEventType.SYNTHESIZE,
+                request=response_content
+            )
+        else:
+            print("No content received from stream.")
+            return None
     
     def handle_streaming_interaction(self, event: ApplicationEvent):
         if not self.assistant_id:
@@ -269,6 +277,12 @@ class StreamingManager:
             if result:
                 result.type = ApplicationEventType.SYNTHESIZE  # Ensure the event type is set to SYNTHESIZE
                 return result  # Return the result to be processed by MainController
+            else:
+                print("No result from handle_stream.")
+                return ApplicationEvent(
+                    type=ApplicationEventType.ERROR,
+                    request="No result from handle_stream."
+                )
 
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
