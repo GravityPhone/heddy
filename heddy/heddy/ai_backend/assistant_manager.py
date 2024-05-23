@@ -222,7 +222,6 @@ class StreamingManager:
             if message['role'] == 'assistant':
                 response_content += message['content']
                 print(f"Appending message content: {message['content']}")
-
         if response_content:
             print(f"Triggering SYNTHESIZE event with message: {response_content}")
             return response_content  # Return the response content directly
@@ -248,8 +247,8 @@ class StreamingManager:
                 stream.until_done()
             result = self.handle_stream(stream)  # Directly process the stream output
 
+            print(f"Result from handle_stream: {result}")
             if result:
-                print(f"Result from handle_stream: {result}")
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
                     request={"response_text": result}  # Pass the assistant's response content to the event
