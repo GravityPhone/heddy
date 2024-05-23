@@ -218,15 +218,19 @@ class StreamingManager:
     
     def handle_stream(self, manager):
         response_content = ""
-        for message in manager:
-            if message['role'] == 'assistant':
-                response_content += message['content']
-                print(f"Appending message content: {message['content']}")
-        if response_content:
-            print(f"Triggering SYNTHESIZE event with message: {response_content}")
-            return response_content  # Return the response content directly
-        else:
-            print("No content received from stream.")
+        try:
+            for message in manager:
+                if message['role'] == 'assistant':
+                    response_content += message['content']
+                    print(f"Appending message content: {message['content']}")
+            if response_content:
+                print(f"Triggering SYNTHESIZE event with message: {response_content}")
+                return response_content
+            else:
+                print("No content received from stream.")
+                return None
+        except Exception as e:
+            print(f"Stream processing error: {str(e)}")
             return None
     
     def handle_streaming_interaction(self, event: ApplicationEvent):
@@ -281,4 +285,5 @@ class StreamingManager:
             })
 
         return content
+
 
