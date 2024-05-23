@@ -135,12 +135,12 @@ class EventHandler(AssistantEventHandler):
     @override
     def on_text_created(self, text) -> None:
         print(f"\nassistant > ", end="", flush=True)
-        self.streaming_manager.response_text += text  # Store the initial text
+        self.streaming_manager.response_text += text.value  # Access the string value
 
     @override
     def on_text_delta(self, delta, snapshot):
         print(delta.value, end="", flush=True)
-        self.streaming_manager.response_text += delta.value  # Append the delta value to the response text
+        self.streaming_manager.response_text += delta.value  # Access the string value
 
     @override
     def on_tool_call_created(self, tool_call):
