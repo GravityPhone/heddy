@@ -7,7 +7,7 @@ from heddy.text_to_speech.text_to_speach_manager import TTSManager
 from heddy.word_detector import WordDetector
 from heddy.io.audio_recorder import start_recording, stop_recording
 from heddy.speech_to_text.assemblyai_transcriber import AssemblyAITranscriber
-from heddy.ai_backend.assistant_manager import AssistantResultStatus, AssitsantResult, ThreadManager, StreamingManager
+from heddy.ai_backend.assistant_manager import AssistantResultStatus, AssistantResult, ThreadManager, StreamingManager
 from heddy.text_to_speech.eleven_labs import ElevenLabsManager
 from heddy.vision_module import VisionModule
 import openai
@@ -147,7 +147,7 @@ class MainController:
         # Add more event types as needed
         return event
     
-    def handle_ai_result(self, result: AssitsantResult):
+    def handle_ai_result(self, result: AssistantResult):
         if result.status == AssistantResultStatus.SUCCESS:
             print(f"Assistant Response: '{result.response}'")
             return ApplicationEvent(
@@ -220,7 +220,7 @@ class MainController:
         process_result = process_result or self.process_result
         current_event = event
         while current_event.type != ApplicationEventType.EXIT:
-            print(current_event.type)
+            print(f"Current event type: {current_event.type}")
             if current_event.type == ApplicationEventType.START:
                 self.audio_player.play_sound("listening.wav")  # Play start listening sound
             result = self.process_event(current_event)
@@ -231,6 +231,7 @@ class MainController:
             if event.status == ProcessingStatus.ERROR:
                 raise RuntimeError(event.error)
             
+            print("Calling process_result")
             current_event = process_result(result)
         return current_event
         
@@ -268,4 +269,5 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
+
 
