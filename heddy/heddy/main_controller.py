@@ -151,21 +151,24 @@ class MainController:
         if result.status == AssistantResultStatus.SUCCESS:
             print(f"Assistant Response: '{result.response}'")
             
-            # Add the transcription result to the thread
+            # Add the transcription result to the thread with snapshot file ID if available
+            message_content = {
+                "role": "user",
+                "content": result.response
+            }
+            if self.snapshot_file_id:
+                message_content["attachments"] = [{"file_id": self.snapshot_file_id}]
+            
             message = self.thread_manager.add_message(
                 thread_id=self.thread_manager.thread_id,
-                role="user",
-                content=result.response
+                **message_content
             )
             
-            # Check if the assistant has already been run
-            if not self.assistant_run:
-                # Run the assistant on the thread
-                run = self.thread_manager.run_assistant(
-                    thread_id=self.thread_manager.thread_id,
-                    assistant_id=self.assistant_id
-                )
-                self.assistant_run = True  # Set the flag to True after running the assistant
+            # Run the assistant on the thread
+            run = self.thread_manager.run_assistant(
+                thread_id=self.thread_manager.thread_id,
+                assistant_id=self.assistant_id
+            )
             
             synthesized_event = self.synthesizer.synthesize(ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
@@ -289,4 +292,5 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
+
 
