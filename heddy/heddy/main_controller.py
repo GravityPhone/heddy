@@ -57,6 +57,7 @@ class MainController:
             synthesized_event = self.synthesizer.synthesize(event)
             if synthesized_event is None:
                 raise RuntimeError("Synthesize returned None")
+            print(f"Synthesized event: {synthesized_event}")
             return ApplicationEvent(
                 type=ApplicationEventType.PLAY,  # Transition to PLAY
                 request=synthesized_event.result
@@ -65,6 +66,7 @@ class MainController:
             play_event = self.audio_player.play(event)
             if play_event is None:
                 raise RuntimeError("Play returned None")
+            print(f"Play event: {play_event}")
             return ApplicationEvent(
                 type=ApplicationEventType.LISTEN,  # Transition to LISTEN
                 request=play_event.result
@@ -119,8 +121,11 @@ class MainController:
                 self.snapshot_taken = False
                 self.snapshot_file_id = None
             result = self.assistant.handle_streaming_interaction(event)
-            if result and result.type == ApplicationEventType.SYNTHESIZE:
-                return result  # Return the SYNTHESIZE event to be processed
+            if result and hasattr(result, 'type') and result.type == ApplicationEventType.SYNTHESIZE:
+                print(f"Result type: {result.type}")
+                synthesized_event = self.synthesizer.synthesize(result)
+                return synthesized_event  # Return the synthesized event to be processed
+            print("Returning to LISTEN state.")
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
@@ -261,3 +266,4 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
+

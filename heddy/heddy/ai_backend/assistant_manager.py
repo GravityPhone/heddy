@@ -225,10 +225,7 @@ class StreamingManager:
 
         if response_content:
             print(f"Triggering SYNTHESIZE event with message: {response_content}")
-            return ApplicationEvent(
-                type=ApplicationEventType.SYNTHESIZE,
-                request=response_content
-            )
+            return response_content  # Return the response content directly
         else:
             print("No content received from stream.")
             return None
@@ -240,8 +237,30 @@ class StreamingManager:
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
 
-        print(f"Handling streaming interaction for event: {event}")
+        content = self.construct_content(event)  # Method to construct content based on event
 
+        try:
+            with self.openai_client.beta.threads.runs.stream(
+                thread_id=self.thread_manager.thread_id,
+                assistant_id=self.assistant_id,
+                event_handler=EventHandler(),
+            ) as stream:
+                stream.until_done()
+            result = self.handle_stream(stream)  # Directly process the stream output
+
+            if result:
+                return ApplicationEvent(
+                    type=ApplicationEventType.SYNTHESIZE,
+                    request=result
+                )
+        except Exception as e:
+            print(f"Error during streaming interaction: {e}")
+            return AssistantResult(
+                error=str(e),
+                status=AssistantResultStatus.ERROR
+            )
+
+    def construct_content(self, event):
         content = [
             {
                 "type": "text",
@@ -255,43 +274,5 @@ class StreamingManager:
                 "image_file": {"file_id": event.request.get("snapshot_file_id"), "detail": "high"}
             })
 
-        print(f"Constructed content: {content}")
-
-        try:
-            if event.type == ApplicationEventType.AI_TOOL_RETURN:
-                manager = self.submit_tool_calls_and_stream(event.request)
-            else:
-                content = content[0]["text"]
-                self.text = ""
-                self.thread_manager.add_message_to_thread(content)
-                
-                with self.openai_client.beta.threads.runs.stream(
-                    thread_id=self.thread_manager.thread_id,
-                    assistant_id=self.assistant_id,
-                    event_handler=EventHandler(),
-                ) as stream:
-                    stream.until_done()
-                manager = stream  # Ensure manager is assigned
-
-            result = self.handle_stream(manager)
-            if result:
-                result.type = ApplicationEventType.SYNTHESIZE  # Ensure the event type is set to SYNTHESIZE
-                return result  # Return the result to be processed by MainController
-            else:
-                print("No result from handle_stream.")
-                return ApplicationEvent(
-                    type=ApplicationEventType.ERROR,
-                    request="No result from handle_stream."
-                )
-
-        except Exception as e:
-            print(f"Error during streaming interaction: {e}")
-            return AssitsantResult(
-                error=str(e),
-                status=AssistantResultStatus.ERROR
-            )
-
-
-
-
+        return content
 
