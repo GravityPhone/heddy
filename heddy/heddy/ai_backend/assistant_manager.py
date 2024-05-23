@@ -30,7 +30,7 @@ class AvailableActions(Enum):
 
 
 @dataclass
-class AssitsantResult:
+class AssistantResult:
     status: AssistantResultStatus
     response: Optional[str] = ""
     calls: Optional[Any] = None
@@ -249,9 +249,16 @@ class StreamingManager:
             result = self.handle_stream(stream)  # Directly process the stream output
 
             if result:
+                print(f"Result from handle_stream: {result}")
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
-                    request=result
+                    request={"response_text": result}  # Pass the assistant's response content to the event
+                )
+            else:
+                print("No result from handle_stream.")
+                return ApplicationEvent(
+                    type=ApplicationEventType.ERROR,
+                    request="No result from handle_stream."
                 )
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
