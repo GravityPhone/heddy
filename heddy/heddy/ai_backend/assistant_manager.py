@@ -272,7 +272,7 @@ class StreamingManager:
                 synthesized_text = result
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
-                    request={"response_text": synthesized_text}  # Pass the assistant's response content to the event
+                    request=synthesized_text  # Pass the assistant's response content directly as a string
                 )
             else:
                 print("No result from handle_stream.")
@@ -303,6 +303,7 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
 
 
 

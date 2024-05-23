@@ -150,10 +150,11 @@ class MainController:
     def handle_ai_result(self, result: AssistantResult):
         if result.status == AssistantResultStatus.SUCCESS:
             print(f"Assistant Response: '{result.response}'")
-            return ApplicationEvent(
+            synthesized_event = self.synthesizer.synthesize(ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
-                request={"response_text": result.response}  # Pass the response text for synthesis
-            )
+                request=result.response  # Ensure the response text is passed directly as a string
+            ))
+            return synthesized_event
         elif result.status == AssistantResultStatus.ACTION_REQUIRED:
             tool_calls = result.calls["tools"]
             for tool_call in tool_calls:
