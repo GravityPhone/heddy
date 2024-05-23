@@ -152,7 +152,7 @@ class MainController:
             print(f"Assistant Response: '{result.response}'")
             return ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
-                request=result.response
+                request={"response_text": result.response}  # Pass the response text for synthesis
             )
         elif result.status == AssistantResultStatus.ACTION_REQUIRED:
             tool_calls = result.calls["tools"]
