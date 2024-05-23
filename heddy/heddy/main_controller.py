@@ -55,12 +55,16 @@ class MainController:
             )
         if event.type == ApplicationEventType.SYNTHESIZE:
             synthesized_event = self.synthesizer.synthesize(event)
+            if synthesized_event is None:
+                raise RuntimeError("Synthesize returned None")
             return ApplicationEvent(
                 type=ApplicationEventType.PLAY,  # Transition to PLAY
                 request=synthesized_event.result
             )
         if event.type == ApplicationEventType.PLAY:
             play_event = self.audio_player.play(event)
+            if play_event is None:
+                raise RuntimeError("Play returned None")
             return ApplicationEvent(
                 type=ApplicationEventType.LISTEN,  # Transition to LISTEN
                 request=play_event.result
@@ -115,12 +119,14 @@ class MainController:
                 self.snapshot_taken = False
                 self.snapshot_file_id = None
             result = self.assistant.handle_streaming_interaction(event)
-            if result.type == ApplicationEventType.SYNTHESIZE:
+            if result and result.type == ApplicationEventType.SYNTHESIZE:
                 return result  # Return the SYNTHESIZE event to be processed
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
-
+        # Add more event types as needed
+        return event
+    
     def process_result(self, event: ApplicationEvent):
         print(f"Processing result: {event.type}, {event.status}, {event.result}")
         if event.status == ProcessingStatus.INIT:
