@@ -150,6 +150,23 @@ class MainController:
     def handle_ai_result(self, result: AssistantResult):
         if result.status == AssistantResultStatus.SUCCESS:
             print(f"Assistant Response: '{result.response}'")
+            
+            # Add the transcription result to the thread
+            message = self.thread_manager.add_message(
+                thread_id=self.thread_manager.thread_id,
+                role="user",
+                content=result.response
+            )
+            
+            # Check if the assistant has already been run
+            if not self.assistant_run:
+                # Run the assistant on the thread
+                run = self.thread_manager.run_assistant(
+                    thread_id=self.thread_manager.thread_id,
+                    assistant_id=self.assistant_id
+                )
+                self.assistant_run = True  # Set the flag to True after running the assistant
+            
             synthesized_event = self.synthesizer.synthesize(ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
                 request=result.response  # Ensure the response text is passed directly as a string
