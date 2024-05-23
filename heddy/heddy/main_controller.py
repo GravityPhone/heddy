@@ -135,7 +135,7 @@ class MainController:
         return event
     
     def process_result(self, event: ApplicationEvent):
-        print("MainController - Processing result: {event.type}, {event.status}, {event.result}")
+        print(f"MainController - Processing result: {event.type}, {event.status}, {event.result}")
         if event.status == ProcessingStatus.INIT:
             return event
         if event.type == ApplicationEventType.SYNTHESIZE:
@@ -217,6 +217,7 @@ class MainController:
         return ApplicationEvent(ApplicationEventType.LISTEN)
     
     def run(self, event: ApplicationEvent, process_result=None) -> ApplicationEvent:
+        print(f"Running event: {event.type}")
         process_result = process_result or self.process_result
         current_event = event
         while current_event.type != ApplicationEventType.EXIT:
@@ -228,11 +229,12 @@ class MainController:
             if result is None:
                 raise RuntimeError("Processing event returned None")
 
-            if event.status == ProcessingStatus.ERROR:
-                raise RuntimeError(event.error)
+            if result.status == ProcessingStatus.ERROR:
+                raise RuntimeError(result.error)
             
             print("Calling process_result")
             current_event = process_result(result)
+            print(f"Processed result: {current_event.type}, {current_event.status}, {current_event.result}")
         return current_event
         
 
@@ -269,5 +271,4 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
-
 
