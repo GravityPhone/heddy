@@ -308,6 +308,3 @@ class StreamingManager:
         print(f"Constructed content: {content}")
         return content
 
-
-
-

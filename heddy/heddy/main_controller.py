@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import uuid
 import subprocess
 import threading
+import time
 
 class MainController:
     # State variables
@@ -102,15 +103,17 @@ class MainController:
                 file_id = self.snapshot_file_id
                 self.snapshot_taken = False
                 self.snapshot_file_id = None
+                self.thread_manager.create_thread()  # Ensure thread is created
                 return self.assistant.handle_streaming_interaction(ApplicationEvent(
                     type=ApplicationEventType.AI_INTERACT,
                     request={"transcription_text": transcription_text, "snapshot_file_id": file_id}
                 ))
             else:
-                return ApplicationEvent(
-                    type=ApplicationEventType.AI_INTERACT,  # Change to AI_INTERACT
+                self.thread_manager.create_thread()  # Ensure thread is created
+                return self.assistant.handle_streaming_interaction(ApplicationEvent(
+                    type=ApplicationEventType.AI_INTERACT,
                     request={"transcription_text": transcription_text}
-                )
+                ))
         if event.type == ApplicationEventType.GET_SNAPSHOT:
             return self.get_snapshot(event)
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
@@ -159,10 +162,15 @@ class MainController:
             if self.snapshot_file_id:
                 message_content["attachments"] = [{"file_id": self.snapshot_file_id}]
             
+            # Ensure the message is added to the thread
             self.thread_manager.add_message_to_thread(
                 content=message_content["content"],
                 snapshot_file_id=self.snapshot_file_id
             )
+            
+            # Wait for the message to be added before running the assistant
+            while self.thread_manager.interaction_in_progress:
+                time.sleep(0.1)  # Small delay to wait for the interaction to complete
             
             # Run the assistant on the thread
             self.thread_manager.run_assistant(
@@ -292,4 +300,5 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
+
 
