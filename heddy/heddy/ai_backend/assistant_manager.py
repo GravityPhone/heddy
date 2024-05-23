@@ -67,6 +67,7 @@ class ThreadManager:
             return
 
         try:
+            self.interaction_in_progress = True  # Set to True when starting interaction
             message_content = [
                 {
                     "type": "text",
@@ -86,15 +87,17 @@ class ThreadManager:
                 attachments=attachments
             )
             print(f"Message added to thread: {self.thread_id}")
+            self.interaction_in_progress = False  # Set to False when interaction ends
         except Exception as e:
             print(f"Failed to add message to thread: {e}")
+            self.interaction_in_progress = False  # Ensure it is reset on failure
 
     def handle_interaction(self, content):
         if not self.thread_id or not self.interaction_in_progress:
             self.create_thread()
         self.add_message_to_thread(content)
+        self.interaction_in_progress = True  # Set to True when starting interaction
         StateManager.last_interaction_time = time.time()  # Update the time with each interaction
-        self.interaction_in_progress = True
         self.reset_last_interaction_time()
 
     def reset_thread(self):
@@ -122,6 +125,7 @@ class ThreadManager:
 
     def end_of_interaction(self):
         # Call this method at the end of an interaction to reset the timer
+        self.interaction_in_progress = False  # Set to False when interaction ends
         self.reset_last_interaction_time()
 
 
