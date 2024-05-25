@@ -74,17 +74,16 @@ class ThreadManager:
                     "text": content  # Directly assign the content string here
                 }
             ]
-            attachments = []
             if snapshot_file_id:
-                attachments.append({
-                    "file_id": snapshot_file_id                   
+                message_content.append({
+                    "type": "image_file",
+                    "image_file": {"file_id": snapshot_file_id}
                 })
 
             message = self.client.beta.threads.messages.create(
                 thread_id=self.thread_id,
                 role="user",
-                content=message_content,
-                attachments=attachments
+                content=message_content
             )
             print(f"Message added to thread: {self.thread_id}")
             self.interaction_in_progress = False  # Set to False when interaction ends
@@ -307,5 +306,6 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
 
 
