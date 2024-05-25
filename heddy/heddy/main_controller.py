@@ -62,7 +62,7 @@ class MainController:
             synthesized_event = self.synthesizer.synthesize(event)
             if synthesized_event is None:
                 raise RuntimeError("Synthesize returned None")
-            print(f"Synthesized event: {synthesized_event}")
+            print(f"Synthesized event: {str(synthesized_event)[:100]}...")  # Truncate synthesized text
             print("Triggering PLAY event")
             return ApplicationEvent(
                 type=ApplicationEventType.PLAY,  # Transition to PLAY
@@ -147,10 +147,10 @@ class MainController:
             event.status = ProcessingStatus.SUCCESS
             return event
         if event.type == ApplicationEventType.ERROR:
-            print(f"Error event: {event.error}")
+            print(f"Error event: {event.error[:100]}...")  # Truncate error details
             return ApplicationEvent(
                 type=ApplicationEventType.SYNTHESIZE,
-                request=f"An error occurred: {event.error}"
+                request=f"An error occurred: {event.error[:100]}..."  # Truncate error details
             )
         return None  # Default return if no event type matches
     

@@ -268,7 +268,7 @@ class StreamingManager:
                 stream.until_done()
             result = self.response_text  # Use the stored response text
 
-            print(f"Result from handle_stream: {result}")
+            print(f"Result from handle_stream: {result[:100]}...")  # Truncate response text
             if result:
                 # Store the result in a variable for synthesis
                 synthesized_text = result
@@ -283,10 +283,10 @@ class StreamingManager:
                     request="No result from handle_stream."
                 )
         except Exception as e:
-            print(f"Error during streaming interaction: {e}")
+            print(f"Error during streaming interaction: {str(e)[:100]}...")  # Truncate error details
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
-                request=str(e)
+                request=str(e)[:100]  # Truncate error details
             )
 
     def construct_content(self, event):
@@ -312,4 +312,5 @@ def tool_call_zapier(arguments):
     # For example, you might send a request to a Zapier webhook
     response = requests.post("https://hooks.zapier.com/hooks/catch/123456/abcdef", json=arguments)
     return response.json()
+
 
