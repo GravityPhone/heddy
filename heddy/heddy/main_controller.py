@@ -113,6 +113,10 @@ class MainController:
             else:
                 self.thread_manager.add_message_to_thread(content=transcription_text)
 
+            # Wait for the message to be added before running the assistant
+            while self.thread_manager.interaction_in_progress:
+                time.sleep(0.1)  # Small delay to wait for the interaction to complete
+
             # Run the assistant on the thread
             return self.assistant.handle_streaming_interaction(ApplicationEvent(
                 type=ApplicationEventType.AI_INTERACT,
@@ -152,12 +156,39 @@ class MainController:
             return event
         if event.type == ApplicationEventType.SYNTHESIZE:
             return ApplicationEvent(
-                type=ApplicationEventType.SYNTHESIZE,
-                status=ProcessingStatus.SUCCESS,
-                result=event.result
+                type=ApplicationEventType.PLAY,
+                request=event.result
             )
-        # Add more event types as needed
-        return event
+        if event.type == ApplicationEventType.PLAY:
+            return ApplicationEvent(
+                type=ApplicationEventType.LISTEN,
+            )
+        if event.type == ApplicationEventType.LISTEN:
+            return self.handle_detected_word(event.result)
+        if event.type == ApplicationEventType.TRANSCRIBE:
+            print(f"Transcription result: '{event.result}'")
+            if self.picture_mode:
+                return ApplicationEvent(
+                    type=ApplicationEventType.GET_SNAPSHOT,
+                    request=event.result
+                )
+            else:
+                return ApplicationEvent(
+                    type=ApplicationEventType.AI_INTERACT,
+                    request=event.result
+                )
+        if event.type == ApplicationEventType.GET_SNAPSHOT:
+            self.picture_mode = False
+            print(f"Snapshot Result: '{event.result}'")
+            return ApplicationEvent(
+                type=ApplicationEventType.AI_INTERACT,
+                request=event.result
+            )
+        return ApplicationEvent(
+            type=ApplicationEventType.SYNTHESIZE,
+            status=ProcessingStatus.SUCCESS,
+            result=event.result
+        )
     
     def handle_ai_result(self, result: AssistantResult):
         if result.status == AssistantResultStatus.SUCCESS:
@@ -310,5 +341,4 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
-
 
