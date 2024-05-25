@@ -101,21 +101,23 @@ class MainController:
             transcription_text = transcription_result.result
             print(f"Transcription result: {transcription_text}")
 
+            # Ensure thread is created
+            self.thread_manager.create_thread()
+
+            # Add transcription text and snapshot file ID to the thread
             if self.snapshot_taken:
                 file_id = self.snapshot_file_id
                 self.snapshot_taken = False
                 self.snapshot_file_id = None
-                self.thread_manager.create_thread()  # Ensure thread is created
-                return self.assistant.handle_streaming_interaction(ApplicationEvent(
-                    type=ApplicationEventType.AI_INTERACT,
-                    request={"transcription_text": transcription_text, "snapshot_file_id": file_id}
-                ))
+                self.thread_manager.add_message_to_thread(content=transcription_text, snapshot_file_id=file_id)
             else:
-                self.thread_manager.create_thread()  # Ensure thread is created
-                return self.assistant.handle_streaming_interaction(ApplicationEvent(
-                    type=ApplicationEventType.AI_INTERACT,
-                    request={"transcription_text": transcription_text}
-                ))
+                self.thread_manager.add_message_to_thread(content=transcription_text)
+
+            # Run the assistant on the thread
+            return self.assistant.handle_streaming_interaction(ApplicationEvent(
+                type=ApplicationEventType.AI_INTERACT,
+                request={"transcription_text": transcription_text, "snapshot_file_id": file_id if self.snapshot_taken else None}
+            ))
         if event.type == ApplicationEventType.GET_SNAPSHOT:
             return self.get_snapshot(event)
         if event.type in [ApplicationEventType.AI_INTERACT, ApplicationEventType.AI_TOOL_RETURN]:
@@ -136,8 +138,13 @@ class MainController:
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
             return ZapierManager().handle_message(event)
-        # Add more event types as needed
-        return event
+        if event.type == ApplicationEventType.ERROR:
+            print(f"Error event: {event.error}")
+            return ApplicationEvent(
+                type=ApplicationEventType.SYNTHESIZE,
+                request=f"An error occurred: {event.error}"
+            )
+        return None  # Default return if no event type matches
     
     def process_result(self, event: ApplicationEvent):
         print(f"MainController - Processing result: {event.type}, {event.status}, {event.result}")
@@ -303,4 +310,5 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
+
 

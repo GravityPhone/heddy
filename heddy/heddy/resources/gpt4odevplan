@@ -1,7 +1,0 @@
-# GPT4o multiModal Update Plan
-
-## Objective
-Update the code to work with the new "GPT4o" (omni multimodal) model and follow the latest instructions for handling image snapshots and attachments.
-We use the ASSISTANTS API and *nothing legacy*
-## Steps
-
