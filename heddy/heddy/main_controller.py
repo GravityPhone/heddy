@@ -140,6 +140,8 @@ class MainController:
                 print(f"Result type: {result.type}")
                 synthesized_event = self.synthesizer.synthesize(result)
                 return synthesized_event  # Return the synthesized event to be processed
+            elif result and hasattr(result, 'type') and result.type == ApplicationEventType.ZAPIER:
+                return self.process_event(result)  # Trigger the Zapier event
             print("Returning to LISTEN state.")
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
