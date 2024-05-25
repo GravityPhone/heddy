@@ -248,10 +248,13 @@ class StreamingManager:
             print(f"Stream processing error: {str(e)}")
             return None
     
-    def handle_streaming_interaction(self, event: ApplicationEvent):
+    def handle_streaming_interaction(self, event: ApplicationEvent) -> ApplicationEvent:
         if not self.assistant_id:
             print("Assistant ID is not set.")
-            return
+            return ApplicationEvent(
+                type=ApplicationEventType.ERROR,
+                request="Assistant ID is not set."
+            )
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
 
@@ -285,9 +288,9 @@ class StreamingManager:
                 )
         except Exception as e:
             print(f"Error during streaming interaction: {e}")
-            return AssistantResult(
-                error=str(e),
-                status=AssistantResultStatus.ERROR
+            return ApplicationEvent(
+                type=ApplicationEventType.ERROR,
+                request=str(e)
             )
 
     def construct_content(self, event):
@@ -306,6 +309,7 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
 
 
 
