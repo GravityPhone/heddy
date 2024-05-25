@@ -143,7 +143,9 @@ class MainController:
             print("Returning to LISTEN state.")
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
+            print(f"Processing Zapier event with request: {event.request}")
             event.result = tool_call_zapier(event.request)
+            print(f"Zapier event result: {event.result}")
             event.status = ProcessingStatus.SUCCESS
             return event
         if event.type == ApplicationEventType.ERROR:

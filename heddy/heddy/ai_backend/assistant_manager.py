@@ -190,7 +190,9 @@ class StreamingManager:
             results = []
             for call in tool_calls:
                 if call.function.name == "send_text_message":
+                    print(f"Calling send_text_message with arguments: {call.function.arguments}")
                     result = tool_call_zapier(call.function.arguments)
+                    print(f"Result from send_text_message: {result}")
                     results.append({"tool_call_id": call.id, "output": result})
             self.client.beta.threads.runs.submit_tool_outputs(
                 run_id=data.id,
@@ -312,5 +314,4 @@ def tool_call_zapier(arguments):
     # For example, you might send a request to a Zapier webhook
     response = requests.post("https://hooks.zapier.com/hooks/catch/123456/abcdef", json=arguments)
     return response.json()
-
 

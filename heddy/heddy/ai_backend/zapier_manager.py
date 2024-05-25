@@ -13,7 +13,9 @@ def tool_call_zapier(arguments):
     text_to_send = arguments.get('message', '')  # Default to empty string if 'message' not found
     
     payload = {"text": text_to_send}
+    print(f"Sending text message via Zapier with arguments: {arguments}")
     response = requests.post(webhook_url, json=payload)
+    print(f"Response from Zapier: {response.status_code}, {response.text}")
     if response.status_code == 200:
         return "Success!"
     else:
@@ -27,5 +29,6 @@ class ZapierManager:
         except Exception as e:
             event.error = str(e)
             event.status = ProcessingStatus.ERROR
+        return event
         return event
         return event
