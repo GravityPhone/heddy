@@ -17,6 +17,7 @@ class ApplicationEventType(Enum):
     AI_INTERACT = 9
     AI_TOOL_RETURN = 10
     ZAPIER = 11
+    ERROR = -2  # Added this line with a numeric value
 
 class ProcessingStatus(Enum):
     INIT = 0
