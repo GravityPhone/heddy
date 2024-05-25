@@ -51,6 +51,8 @@ class MainController:
 
     def process_event(self, event: ApplicationEvent):
         print(f"Processing event: {event}")
+        if isinstance(event, AssistantResult):
+            return self.handle_ai_result(event)
         if event.type == ApplicationEventType.START:
             return ApplicationEvent(
                 ApplicationEventType.SYNTHESIZE,
@@ -190,7 +192,7 @@ class MainController:
             result=event.result
         )
     
-    def handle_ai_result(self, result: AssistantResult):
+    def handle_ai_result(self, result: AssistantResult) -> ApplicationEvent:
         if result.status == AssistantResultStatus.SUCCESS:
             print(f"Assistant Response: '{result.response}'")
             
