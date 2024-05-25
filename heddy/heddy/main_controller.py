@@ -1,5 +1,5 @@
 import os
-from heddy.ai_backend.zapier_manager import ZapierManager
+from heddy.ai_backend.zapier_manager import ZapierManager, tool_call_zapier
 from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus, Message
 from heddy.io.sound_effects_player import AudioPlayer
 from heddy.speech_to_text.stt_manager import STTManager
@@ -143,7 +143,9 @@ class MainController:
             print("Returning to LISTEN state.")
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
-            return ZapierManager().handle_message(event)
+            event.result = tool_call_zapier(event.request)
+            event.status = ProcessingStatus.SUCCESS
+            return event
         if event.type == ApplicationEventType.ERROR:
             print(f"Error event: {event.error}")
             return ApplicationEvent(
@@ -227,12 +229,21 @@ class MainController:
             return synthesized_event
         elif result.status == AssistantResultStatus.ACTION_REQUIRED:
             tool_calls = result.calls["tools"]
+            tool_outputs = []
             for tool_call in tool_calls:
                 event = self.run(event=ApplicationEvent(
                     type=tool_call["type"],
                     request=tool_call["args"]
                 ), process_result=self.process_func_trigger)
-                tool_call["output"] = event.result
+                tool_outputs.append({
+                    "tool_call_id": tool_call["id"],
+                    "output": event.result
+                })
+            self.submit_tool_outputs(
+                thread_id=self.thread_manager.thread_id,
+                run_id=result.run_id,
+                tool_outputs=tool_outputs
+            )
             return ApplicationEvent(
                 type=ApplicationEventType.AI_TOOL_RETURN,
                 request=result.calls
@@ -343,4 +354,12 @@ if __name__ == "__main__":
     main = initialize()
     main.run(ApplicationEvent(ApplicationEventType.START))
     main.run(ApplicationEvent(ApplicationEventType.START))
+
+def submit_tool_outputs(self, thread_id, run_id, tool_outputs):
+    response = self.openai_client.beta.threads.runs.submit_tool_outputs(
+        thread_id=thread_id,
+        run_id=run_id,
+        tool_outputs=tool_outputs
+    )
+    return response
 

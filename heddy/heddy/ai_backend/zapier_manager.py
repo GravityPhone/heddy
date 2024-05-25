@@ -24,10 +24,8 @@ class ZapierManager:
         try:
             event.result = tool_call_zapier(event.request)
             event.status = ProcessingStatus.SUCCESS
-            event.type = ApplicationEventType.ZAPIER  # Ensure the type is set to ZAPIER
         except Exception as e:
             event.error = str(e)
             event.status = ProcessingStatus.ERROR
-            event.type = ApplicationEventType.ZAPIER  # Ensure the type is set to ZAPIER even on error
         return event
         return event

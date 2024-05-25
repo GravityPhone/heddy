@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
 from typing_extensions import override
 from openai import AssistantEventHandler
+from heddy.ai_backend.zapier_manager import tool_call_zapier
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -181,25 +182,20 @@ class StreamingManager:
         else:
             raise NotImplementedError(f"{func.name=}")
 
-    def resolve_calls(self, event):
+    def resolve_calls(self, event: ApplicationEvent):
         data = event.data
         action = data.required_action
         if action.type == "submit_tool_outputs":
-            _tool_calls = action.submit_tool_outputs.tool_calls
-            tool_calls = []
-            for call in _tool_calls:
-                func = call.function
-                tool_calls.append({
-                    "type": self.func_name_to_application_event(func),
-                    "args": func.arguments,
-                    "tool_call_id": call.id
-                })
-            
-            return {
-                "tools": tool_calls,
-                "run_id": data.id,
-                "thread_id": data.thread_id
-            }
+            tool_calls = action.submit_tool_outputs.tool_calls
+            results = []
+            for call in tool_calls:
+                if call.function.name == "send_text_message":
+                    result = tool_call_zapier(call.function.arguments)
+                    results.append({"tool_call_id": call.id, "output": result})
+            self.client.beta.threads.runs.submit_tool_outputs(
+                run_id=data.id,
+                tool_outputs=results
+            )
         elif action.type == "upload_image":
             return self.upload_image_to_openai(event)
         elif action.type == "snapshot":
@@ -299,6 +295,7 @@ class StreamingManager:
                 "type": "text",
                 "text": str(event.request.get("transcription_text"))  # Ensure the text is a string
             }
+            
         ]
 
         if event.request.get("snapshot_file_id"):
@@ -310,6 +307,9 @@ class StreamingManager:
         print(f"Constructed content: {content}")
         return content
 
-
-
+def tool_call_zapier(arguments):
+    # Implement the logic for handling the Zapier tool call
+    # For example, you might send a request to a Zapier webhook
+    response = requests.post("https://hooks.zapier.com/hooks/catch/123456/abcdef", json=arguments)
+    return response.json()
 
