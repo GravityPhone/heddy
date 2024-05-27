@@ -233,21 +233,63 @@ class StreamingManager:
         try:
             for message in manager:
                 print(f"Received message: {message}")
-                if isinstance(message, ThreadRunRequiresAction):
-                    return self.resolve_calls(message)
-                elif message['role'] == 'assistant':
+                if message['role'] == 'assistant':
                     response_content += message['content']
                     print(f"Appending message content: {message['content']}")
             if response_content:
-                print(f"Triggering SYNTHESIZE event")
-                return response_content
+                print(f"Triggering SYNTHESIZE event with message: {response_content}")
+                return response_content  # Return the response content directly
             else:
                 print("No content received from stream.")
                 return None
         except Exception as e:
             print(f"Stream processing error: {str(e)}")
-            return None 
+            return None
     
+    def handle_streaming_interaction(self, event: ApplicationEvent) -> ApplicationEvent:
+        if not self.assistant_id:
+            print("Assistant ID is not set.")
+            return ApplicationEvent(
+                type=ApplicationEventType.ERROR,
+                request="Assistant ID is not set."
+            )
+        if not self.thread_manager.thread_id:
+            self.thread_manager.create_thread()
+
+        content = self.construct_content(event)  # Method to construct content based on event
+        print(f"Constructed content: {content}")
+
+        try:
+            self.response_text = ""  # Reset the response text at the beginning of the interaction
+            self.set_event_handler(EventHandler(self))  # Initialize EventHandler with StreamingManager instance
+            with self.openai_client.beta.threads.runs.stream(
+                thread_id=self.thread_manager.thread_id,
+                assistant_id=self.assistant_id,
+                event_handler=self.event_handler,
+            ) as stream:
+                stream.until_done()
+            result = self.response_text  # Use the stored response text
+
+            print(f"Result from handle_stream: {result[:100]}...")  # Truncate response text
+            if result:
+                # Store the result in a variable for synthesis
+                synthesized_text = result
+                return ApplicationEvent(
+                    type=ApplicationEventType.SYNTHESIZE,
+                    request=synthesized_text  # Pass the assistant's response content directly as a string
+                )
+            else:
+                print("No result from handle_stream.")
+                return ApplicationEvent(
+                    type=ApplicationEventType.ERROR,
+                    request="No result from handle_stream."
+                )
+        except Exception as e:
+            print(f"Error during streaming interaction: {str(e)[:100]}...")  # Truncate error details
+            return ApplicationEvent(
+                type=ApplicationEventType.ERROR,
+                request=str(e)[:100]  # Truncate error details
+            )
 
     def construct_content(self, event):
         content = [
@@ -266,4 +308,10 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
+def tool_call_zapier(arguments):
+    # Implement the logic for handling the Zapier tool call
+    # For example, you might send a request to a Zapier webhook
+    response = requests.post("https://hooks.zapier.com/hooks/catch/123456/abcdef", json=arguments)
+    return response.json()
 
