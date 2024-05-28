@@ -2,7 +2,7 @@ from heddy.application_event import ApplicationEvent, ProcessingStatus, Applicat
 import json
 import requests
 
-def tool_call_zapier(arguments):
+def send_text_message(arguments):
     webhook_url = "https://hooks.zapier.com/hooks/catch/82343/19816978ac224264aa3eec6c8c911e10/"
     
     # Parse the arguments as JSON if it's a string
@@ -24,11 +24,9 @@ def tool_call_zapier(arguments):
 class ZapierManager:
     def handle_message(self, event: ApplicationEvent):
         try:
-            event.result = tool_call_zapier(event.request)
+            event.result = send_text_message(event.request)
             event.status = ProcessingStatus.SUCCESS
         except Exception as e:
             event.error = str(e)
             event.status = ProcessingStatus.ERROR
-        return event
-        return event
         return event

@@ -270,19 +270,20 @@ class StreamingManager:
                 stream.until_done()
             result = self.response_text  # Use the stored response text
 
+            # Call the Zapier function and submit the tool outputs
+            zapier_result = self.call_zapier_and_submit_tool_outputs(event, result)
+
             print(f"Result from handle_stream: {result[:100]}...")  # Truncate response text
-            if result:
-                # Store the result in a variable for synthesis
-                synthesized_text = result
+
+            if zapier_result.status == ProcessingStatus.SUCCESS:
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
-                    request=synthesized_text  # Pass the assistant's response content directly as a string
+                    request=result  # Pass the assistant's response content directly as a string
                 )
             else:
-                print("No result from handle_stream.")
                 return ApplicationEvent(
                     type=ApplicationEventType.ERROR,
-                    request="No result from handle_stream."
+                    request=zapier_result.error
                 )
         except Exception as e:
             print(f"Error during streaming interaction: {str(e)[:100]}...")  # Truncate error details
@@ -290,6 +291,25 @@ class StreamingManager:
                 type=ApplicationEventType.ERROR,
                 request=str(e)[:100]  # Truncate error details
             )
+
+    def call_zapier_and_submit_tool_outputs(self, event: ApplicationEvent, result: str):
+        # Call the Zapier function
+        zapier_event = ApplicationEvent(
+            type=ApplicationEventType.ZAPIER,
+            request={"message": result}
+        )
+        zapier_result = self.resolve_calls(zapier_event)
+
+        # Submit the tool outputs
+        self.submit_tool_calls_and_stream(
+            {
+                "tools": zapier_result.result,
+                "run_id": event.request.get("run_id", ""),
+                "thread_id": self.thread_manager.thread_id
+            }
+        )
+
+        return zapier_result
 
     def construct_content(self, event):
         content = [
@@ -314,4 +334,5 @@ def tool_call_zapier(arguments):
     # For example, you might send a request to a Zapier webhook
     response = requests.post("https://hooks.zapier.com/hooks/catch/123456/abcdef", json=arguments)
     return response.json()
+
 
