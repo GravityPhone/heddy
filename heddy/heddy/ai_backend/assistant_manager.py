@@ -184,11 +184,11 @@ class StreamingManager:
 
     def resolve_calls(self, event: ApplicationEvent):
         data = event.data
-        if data is None:
-            raise ValueError("Event data is None")
-        action = data.required_action if data.required_action else None
+        if not isinstance(data, dict):
+            raise ValueError("Event data is not a dictionary")
+        action = data.get('required_action')
         if not action:
-            if 'required_action' not in data.model_fields_set:
+            if 'required_action' not in data:
                 raise ValueError("Missing 'required_action' key in event data")
             else:
                 raise ValueError("'required_action' is explicitly set to null in event data")
@@ -283,8 +283,9 @@ class StreamingManager:
             # Ensure required_action is set
             if not event.data:
                 event.data = {}
-            if not event.data.required_action:
-                if 'required_action' not in event.data.model_fields_set:
+            print(f"Event data: {event.data}")  # Add this line to print the dictionary
+            if not event.data.get('required_action'):
+                if 'required_action' not in event.data:
                     event.data['required_action'] = {"submit_tool_outputs": {"tool_calls": []}}
                 else:
                     raise ValueError("'required_action' is explicitly set to null in event data")
@@ -355,6 +356,7 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
 
 
 
