@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
 from typing_extensions import override
 from openai import AssistantEventHandler
-from heddy.ai_backend.zapier_manager import send_text_message
+from heddy.ai_backend.zapier_manager import send_text_message, ZapierManager
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -133,35 +133,30 @@ class ThreadManager:
 
 class EventHandler(AssistantEventHandler):
     def __init__(self, streaming_manager):
-        super().__init__()  # Ensure the base class is properly initialized
+        super().__init__()
         self.streaming_manager = streaming_manager
 
     @override
-    def on_text_created(self, text) -> None:
-        print(f"\nassistant > ", end="", flush=True)
-        self.streaming_manager.response_text += text.value  # Access the string value
+    def on_event(self, event):
+        if event.event == 'thread.run.requires_action':
+            run_id = event.data.id
+            self.handle_requires_action(event.data, run_id)
 
-    @override
-    def on_text_delta(self, delta, snapshot):
-        print(delta.value, end="", flush=True)
-        self.streaming_manager.response_text += delta.value  # Access the string value
+    def handle_requires_action(self, data, run_id):
+        tool_outputs = []
+        for tool in data.required_action.submit_tool_outputs.tool_calls:
+            if tool.function.name == "send_text_message":
+                print(f"Calling send_text_message with arguments: {tool.function.arguments}")
+                result = send_text_message(tool.function.arguments)
+                tool_outputs.append({"tool_call_id": tool.id, "output": result})
 
-    @override
-    def on_tool_call_created(self, tool_call):
-        print(f"\nassistant > {tool_call.type}\n", flush=True)
-
-    @override
-    def on_tool_call_delta(self, delta, snapshot):
-        if delta.type == 'code_interpreter':
-            if delta.code_interpreter.input:
-                print(delta.code_interpreter.input, end="", flush=True)
-                self.streaming_manager.response_text += delta.code_interpreter.input  # Append the input to the response text
-            if delta.code_interpreter.outputs:
-                print(f"\n\noutput >", flush=True)
-                for output in delta.code_interpreter.outputs:
-                    if output.type == "logs":
-                        print(f"\n{output.logs}", flush=True)
-                        self.streaming_manager.response_text += output.logs  # Append the logs to the response text
+        self.streaming_manager.submit_tool_calls_and_stream(
+            {
+                "tools": tool_outputs,
+                "run_id": run_id,
+                "thread_id": self.streaming_manager.thread_manager.thread_id
+            }
+        )
 
 class StreamingManager:
     def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
@@ -182,24 +177,28 @@ class StreamingManager:
         else:
             raise NotImplementedError(f"{func.name=}")
 
-def resolve_calls(self, event: ApplicationEvent):
-    data = event.data
-    action = data.required_action if data and data.required_action else None
-    if not action:
-        raise ValueError("Missing required_action in event data")
-    if action.type == "submit_tool_outputs":
-        tool_calls = action.submit_tool_outputs.tool_calls
-        results = []
-        for call in tool_calls:
-            if call.function.name == "send_text_message":
-                print(f"Calling send_text_message with arguments: {call.function.arguments}")
-                result = send_text_message(call.function.arguments)
-                print(f"Result from send_text_message: {result}")
-                results.append({"tool_call_id": call.id, "output": result})
-        self.client.beta.threads.runs.submit_tool_outputs(
-            run_id=data.id,
-            tool_outputs=results
-        )
+    def resolve_calls(self, event: ApplicationEvent):
+        data = event.data
+        action = data.required_action if data and data.required_action else None
+        if not action:
+            raise ValueError("Missing required_action in event data")
+        if action.type == "submit_tool_outputs":
+            tool_calls = action.submit_tool_outputs.tool_calls
+            results = []
+            for call in tool_calls:
+                if call.function.name == "send_text_message":
+                    print(f"Calling send_text_message with arguments: {call.function.arguments}")
+                    result = send_text_message(call.function.arguments)
+                    print(f"Result from send_text_message: {result}")
+                    results.append({"tool_call_id": call.id, "output": result})
+            self.client.beta.threads.runs.submit_tool_outputs(
+                run_id=data.id,
+                tool_outputs=results
+            )
+        elif action.type == "upload_image":
+            return self.upload_image_to_openai(event)
+        elif action.type == "snapshot":
+            return self.handle_snapshot(event)
     
     def upload_image_to_openai(self, event):
         image_path = event.image_path
@@ -285,33 +284,40 @@ def resolve_calls(self, event: ApplicationEvent):
                     request=zapier_result.error
                 )
         except Exception as e:
-            print(f"Error during streaming interaction: {str(e)}")
+            print(f"Error during streaming interaction: {str(e)[:100]}...")  # Truncate error details
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
                 request=str(e)[:100]  # Truncate error details
             )
-    
+
     def call_zapier_and_submit_tool_outputs(self, event: ApplicationEvent, result: str):
-        # Call the Zapier function
-        zapier_event = ApplicationEvent(
-            type=ApplicationEventType.ZAPIER,
-            request={"message": result},
-            data={
-                "required_action": {
-                    "submit_tool_outputs": {
-                        "tool_calls": event.data.required_action.submit_tool_outputs.tool_calls  # Use the existing tool_calls
-                    },
-                    "id": event.request.get("run_id", "")  # Use the run ID from the event
+        if not event.data or not event.data.get('required_action'):
+            print("Missing required_action in event data.")
+            return ApplicationEvent(
+                type=ApplicationEventType.ERROR,
+                request="Missing required_action in event data."
+            )
+        zapier_manager = ZapierManager()
+        zapier_result = zapier_manager.handle_message(
+            ApplicationEvent(
+                type=ApplicationEventType.AI_INTERACT,  # Changed from SYNTHESIZE to AI_INTERACT
+                request={"message": result},
+                data={
+                    "required_action": {
+                        "submit_tool_outputs": {
+                            "tool_calls": event.data.required_action.submit_tool_outputs.tool_calls
+                        },
+                        "id": event.request.get("run_id", "")
+                    }
                 }
-            }
+            )
         )
-        zapier_result = self.resolve_calls(zapier_event)
 
         # Submit the tool outputs
         self.submit_tool_calls_and_stream(
             {
                 "tools": zapier_result.result,
-                "run_id": zapier_event.data.required_action.id,  # Use the run ID from the zapier_event
+                "run_id": zapier_result.data.required_action.id,
                 "thread_id": self.thread_manager.thread_id
             }
         )
@@ -335,6 +341,10 @@ def resolve_calls(self, event: ApplicationEvent):
 
         print(f"Constructed content: {content}")
         return content
+
+
+
+
 
 
 
