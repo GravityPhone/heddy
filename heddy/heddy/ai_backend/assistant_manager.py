@@ -295,6 +295,15 @@ class StreamingManager:
             print(f"Result from handle_stream: {result[:100]}...")
 
             if "Success" in send_result:
+                # Re-initiate the streaming process after submitting tool outputs
+                with self.openai_client.beta.threads.runs.stream(
+                    thread_id=self.thread_manager.thread_id,
+                    assistant_id=self.assistant_id,
+                    event_handler=self.event_handler,
+                ) as stream:
+                    stream.until_done()
+                result = self.response_text  # Use the stored response text
+
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
                     request=result
