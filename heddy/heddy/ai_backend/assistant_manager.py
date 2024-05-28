@@ -202,7 +202,7 @@ class StreamingManager:
                     results.append({"tool_call_id": call['id'], "output": result})
             self.client.beta.threads.runs.submit_tool_outputs(
                 run_id=data['id'],
-                tool_outputs=results pecka
+                tool_outputs=results
             )
         elif action.type == "upload_image":
             return self.upload_image_to_openai(event)
