@@ -175,7 +175,10 @@ class EventHandler(AssistantEventHandler):
 
         for tool in data.required_action.submit_tool_outputs.tool_calls:
             if tool.function.name == "send_text_message":
-                message = tool.function.arguments.get("message", "")
+                arguments = tool.function.arguments
+                if isinstance(arguments, str):
+                    arguments = json.loads(arguments)
+                message = arguments.get("message", "")
                 send_result = send_text_message({"message": message})
                 tool_outputs.append({"tool_call_id": tool.id, "output": send_result})
 
