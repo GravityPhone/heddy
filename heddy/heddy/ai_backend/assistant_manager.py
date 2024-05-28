@@ -311,6 +311,8 @@ class StreamingManager:
                 stream.until_done()
             response_text = self.response_text  # Use the stored response text
 
+            print(f"Response text: {response_text}")
+
             if not event.data:
                 print("Event data is None, initializing to empty dictionary.")
                 event.data = {}
@@ -339,6 +341,8 @@ class StreamingManager:
                 print(f"Function call detected: {function_call}")
                 if function_call["name"] == "send_text_message":
                     parameters = function_call["parameters"]
+                    if isinstance(parameters, str):
+                        parameters = json.loads(parameters)  # Ensure parameters are a dictionary
                     print(f"Function call parameters: {parameters}")
                     zapier_response = send_text_message(parameters)
                     if zapier_response == "Success!":
@@ -406,7 +410,7 @@ def send_text_message(arguments):
     webhook_url = "https://hooks.zapier.com/hooks/catch/82343/19816978ac224264aa3eec6c8c911e10/"
     
     if isinstance(arguments, str):
-        arguments = json.loads(arguments)
+        arguments = json.loads(arguments)  # Ensure arguments are a dictionary
     
     text_to_send = arguments.get('message', '')
     
@@ -418,8 +422,4 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
-
-
-
-
 
