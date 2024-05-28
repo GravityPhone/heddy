@@ -372,18 +372,18 @@ class StreamingManager:
             )
 
     def construct_content(self, event):
+        request = event.request if isinstance(event.request, dict) else {}
         content = [
             {
                 "type": "text",
-                "text": str(event.request.get("transcription_text"))  # Ensure the text is a string
+                "text": str(request.get("transcription_text", ""))  # Ensure the text is a string
             }
-            
         ]
 
-        if event.request.get("snapshot_file_id"):
+        if request.get("snapshot_file_id"):
             content.append({
                 "type": "image_file",
-                "image_file": {"file_id": event.request.get("snapshot_file_id"), "detail": "high"}
+                "image_file": {"file_id": request.get("snapshot_file_id"), "detail": "high"}
             })
 
         print(f"Constructed content: {content}")
@@ -405,4 +405,5 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
 
