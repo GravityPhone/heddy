@@ -295,6 +295,15 @@ class StreamingManager:
             print(f"Result from handle_stream: {result[:100]}...")
 
             if "Success" in send_result:
+                # Submit tool outputs to OpenAI
+                self.openai_client.beta.threads.runs.submit_tool_outputs(
+                    run_id=self.thread_manager.run_id,
+                    tool_outputs=[{
+                        "tool_call_id": "send_text_message",
+                        "output": send_result
+                    }]
+                )
+
                 # Re-initiate the streaming process after submitting tool outputs
                 with self.openai_client.beta.threads.runs.stream(
                     thread_id=self.thread_manager.thread_id,
