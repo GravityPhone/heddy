@@ -332,10 +332,14 @@ class StreamingManager:
                         data=None
                     )
 
+            print(f"Parsed response_text: {response_text}")
+
             if "function_call" in response_text:
                 function_call = response_text["function_call"]
+                print(f"Function call detected: {function_call}")
                 if function_call["name"] == "send_text_message":
                     parameters = function_call["parameters"]
+                    print(f"Function call parameters: {parameters}")
                     zapier_response = send_text_message(parameters)
                     if zapier_response == "Success!":
                         # Submit tool outputs to OpenAI
@@ -414,6 +418,7 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
 
 
 
