@@ -321,6 +321,17 @@ class StreamingManager:
                 raise ValueError("'required_action' is explicitly set to null in event data")
 
             # Check if the response requires a function call
+            if isinstance(result, str):
+                try:
+                    result = json.loads(result)
+                except json.JSONDecodeError:
+                    print(f"Result is not a valid JSON: {result}")
+                    return ApplicationEvent(
+                        type=ApplicationEventType.ERROR,
+                        request="Invalid response format",
+                        data=None
+                    )
+
             if "function_call" in result:
                 # Directly call the send_text_message function
                 message = result  # Use the result as the message
@@ -405,5 +416,4 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
-
 
