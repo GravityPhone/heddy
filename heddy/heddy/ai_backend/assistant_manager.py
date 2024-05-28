@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
 from typing_extensions import override
 from openai import AssistantEventHandler
-from heddy.ai_backend.zapier_manager import send_text_message
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -193,17 +192,17 @@ class StreamingManager:
             else:
                 raise ValueError("'required_action' is explicitly set to null in event data")
         if action.type == "submit_tool_outputs":
-            tool_calls = action.submit_tool_outputs.tool_calls
+            tool_calls = action.submit_tool_outputs['tool_calls']
             results = []
             for call in tool_calls:
-                if call.function.name == "send_text_message":
-                    print(f"Calling send_text_message with arguments: {call.function.arguments}")
-                    result = send_text_message(call.function.arguments)
+                if call['function']['name'] == "send_text_message":
+                    print(f"Calling send_text_message with arguments: {call['function']['arguments']}")
+                    result = send_text_message(call['function']['arguments'])
                     print(f"Result from send_text_message: {result}")
-                    results.append({"tool_call_id": call.id, "output": result})
+                    results.append({"tool_call_id": call['id'], "output": result})
             self.client.beta.threads.runs.submit_tool_outputs(
-                run_id=data.id,
-                tool_outputs=results
+                run_id=data['id'],
+                tool_outputs=results pecka
             )
         elif action.type == "upload_image":
             return self.upload_image_to_openai(event)
@@ -280,7 +279,6 @@ class StreamingManager:
                 stream.until_done()
             result = self.response_text  # Use the stored response text
 
-            # Ensure required_action is set
             if not event.data:
                 print("Event data is None, initializing to empty dictionary.")
                 event.data = {}
@@ -290,54 +288,28 @@ class StreamingManager:
             elif event.data['required_action'] is None:
                 raise ValueError("'required_action' is explicitly set to null in event data")
 
-            # Call the Zapier function and submit the tool outputs
-            zapier_result = self.call_zapier_and_submit_tool_outputs(event, result)
+            # Directly call the send_text_message function
+            message = result  # Use the result as the message
+            send_result = send_text_message({"message": message})
 
-            print(f"Result from handle_stream: {result[:100]}...")  # Truncate response text
+            print(f"Result from handle_stream: {result[:100]}...")
 
-            if zapier_result.status == ProcessingStatus.SUCCESS:
+            if "Success" in send_result:
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
-                    request=result  # Pass the assistant's response content directly as a string
+                    request=result
                 )
             else:
                 return ApplicationEvent(
                     type=ApplicationEventType.ERROR,
-                    request=zapier_result.error
+                    request=send_result
                 )
         except Exception as e:
-            print(f"Error during streaming interaction: {str(e)[:100]}...")  # Truncate error details
+            print(f"Error during streaming interaction: {str(e)[:100]}...")
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
-                request=str(e)[:100]  # Truncate error details
+                request=str(e)[:100]
             )
-
-    def call_zapier_and_submit_tool_outputs(self, event: ApplicationEvent, result: str):
-        # Call the Zapier function
-        zapier_event = ApplicationEvent(
-            type=ApplicationEventType.ZAPIER,
-            request={"message": result},
-            data={
-                "required_action": {
-                    "submit_tool_outputs": {
-                        "tool_calls": event.data['required_action']['submit_tool_outputs']['tool_calls']  # Use the existing tool_calls
-                    },
-                    "id": event.request.get("run_id", "")  # Use the run ID from the event
-                }
-            }
-        )
-        zapier_result = self.resolve_calls(zapier_event)
-
-        # Submit the tool outputs
-        self.submit_tool_calls_and_stream(
-            {
-                "tools": zapier_result.result,
-                "run_id": zapier_event.data.required_action.id,  # Use the run ID from the zapier_event
-                "thread_id": self.thread_manager.thread_id
-            }
-        )
-
-        return zapier_result
 
     def construct_content(self, event):
         content = [
@@ -357,14 +329,20 @@ class StreamingManager:
         print(f"Constructed content: {content}")
         return content
 
-
-
-
-
-
-
-
-
-
-
+def send_text_message(arguments):
+    webhook_url = "https://hooks.zapier.com/hooks/catch/82343/19816978ac224264aa3eec6c8c911e10/"
+    
+    if isinstance(arguments, str):
+        arguments = json.loads(arguments)
+    
+    text_to_send = arguments.get('message', '')
+    
+    payload = {"text": text_to_send}
+    print(f"Sending text message via Zapier with arguments: {arguments}")
+    response = requests.post(webhook_url, json=payload)
+    print(f"Response from Zapier: {response.status_code}, {response.text}")
+    if response.status_code == 200:
+        return "Success!"
+    else:
+        return f"Failed with status code {response.status_code}"
 
