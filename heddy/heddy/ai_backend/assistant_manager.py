@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
 from typing_extensions import override
 from openai import AssistantEventHandler
-from heddy.ai_backend.zapier_manager import tool_call_zapier
+from heddy.ai_backend.zapier_manager import send_text_message
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -191,7 +191,7 @@ class StreamingManager:
             for call in tool_calls:
                 if call.function.name == "send_text_message":
                     print(f"Calling send_text_message with arguments: {call.function.arguments}")
-                    result = tool_call_zapier(call.function.arguments)
+                    result = send_text_message(call.function.arguments)
                     print(f"Result from send_text_message: {result}")
                     results.append({"tool_call_id": call.id, "output": result})
             self.client.beta.threads.runs.submit_tool_outputs(
@@ -328,11 +328,4 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
-
-def tool_call_zapier(arguments):
-    # Implement the logic for handling the Zapier tool call
-    # For example, you might send a request to a Zapier webhook
-    response = requests.post("https://hooks.zapier.com/hooks/catch/123456/abcdef", json=arguments)
-    return response.json()
-
 

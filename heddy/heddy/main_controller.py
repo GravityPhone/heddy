@@ -1,5 +1,5 @@
 import os
-from heddy.ai_backend.zapier_manager import ZapierManager, tool_call_zapier
+from heddy.ai_backend.zapier_manager import ZapierManager, send_text_message
 from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus, Message
 from heddy.io.sound_effects_player import AudioPlayer
 from heddy.speech_to_text.stt_manager import STTManager
@@ -145,7 +145,7 @@ class MainController:
             print("Returning to LISTEN state.")
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
-            event.result = tool_call_zapier(event.request)
+            event.result = send_text_message(event.request)
             return event
         if event.type == ApplicationEventType.ERROR:
             print(f"Error event: {event.error[:100]}...")  # Truncate error details
