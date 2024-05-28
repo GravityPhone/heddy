@@ -221,7 +221,7 @@ class StreamingManager:
         return file_id
     
     def submit_tool_calls_and_stream(self, result):
-        return openai.beta.threads.runs.submit_tool_outputs_stream(
+        return self.openai_client.beta.threads.runs.submit_tool_outputs_stream(
             tool_outputs=[{
                 "output": call["output"],
                 "tool_call_id": call["tool_call_id"]

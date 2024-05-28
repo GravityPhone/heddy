@@ -145,19 +145,7 @@ class MainController:
             print("Returning to LISTEN state.")
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
-            zapier_event = ApplicationEvent(
-                type=ApplicationEventType.ZAPIER,
-                request=event.request,
-                data={
-                    "required_action": {
-                        "submit_tool_outputs": {
-                            "tool_calls": []  # Initialize with an empty list
-                        }
-                    }
-                }
-            )
-            event.result = self.resolve_calls(zapier_event)
-            return event
+            return self.handle_zapier_request(event)
         if event.type == ApplicationEventType.ERROR:
             print(f"Error event: {event.error[:100]}...")  # Truncate error details
             return ApplicationEvent(
@@ -165,6 +153,18 @@ class MainController:
                 request=f"An error occurred: {event.error[:100]}..."  # Truncate error details
             )
         return None  # Default return if no event type matches
+    
+    def handle_zapier_request(self, event: ApplicationEvent):
+        try:
+            zapier_manager = ZapierManager()
+            zapier_manager.handle_message(event)
+            return event
+        except Exception as e:
+            print(f"Error handling Zapier request: {str(e)}")
+            return ApplicationEvent(
+                type=ApplicationEventType.ERROR,
+                request=str(e)
+            )
     
     def process_result(self, event: ApplicationEvent):
         print(f"MainController - Processing result: {event.type}, {event.status}, {event.result}")

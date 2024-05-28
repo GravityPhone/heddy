@@ -24,7 +24,15 @@ def send_text_message(arguments):
 class ZapierManager:
     def handle_message(self, event: ApplicationEvent):
         try:
-            event.result = send_text_message(event.request)
+            tool_calls = event.data.required_action.submit_tool_outputs.tool_calls
+            results = []
+            for call in tool_calls:
+                if call.function.name == "send_text_message":
+                    print(f"Calling send_text_message with arguments: {call.function.arguments}")
+                    result = send_text_message(call.function.arguments)
+                    print(f"Result from send_text_message: {result}")
+                    results.append({"tool_call_id": call.id, "output": result})
+            event.result = results
             event.status = ProcessingStatus.SUCCESS
         except Exception as e:
             event.error = str(e)
