@@ -296,7 +296,15 @@ class StreamingManager:
         # Call the Zapier function
         zapier_event = ApplicationEvent(
             type=ApplicationEventType.ZAPIER,
-            request={"message": result}
+            request={"message": result},
+            data={
+                "required_action": {
+                    "submit_tool_outputs": {
+                        "tool_calls": event.data.required_action.submit_tool_outputs.tool_calls  # Use the existing tool_calls
+                    },
+                    "id": event.request.get("run_id", "")  # Use the run ID from the event
+                }
+            }
         )
         zapier_result = self.resolve_calls(zapier_event)
 
@@ -304,7 +312,7 @@ class StreamingManager:
         self.submit_tool_calls_and_stream(
             {
                 "tools": zapier_result.result,
-                "run_id": event.request.get("run_id", ""),
+                "run_id": zapier_event.data.required_action.id,  # Use the run ID from the zapier_event
                 "thread_id": self.thread_manager.thread_id
             }
         )
@@ -328,4 +336,9 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
+
+
+
+
 
