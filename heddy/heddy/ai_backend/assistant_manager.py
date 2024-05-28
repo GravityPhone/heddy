@@ -179,20 +179,11 @@ class EventHandler(AssistantEventHandler):
                 send_result = send_text_message({"message": message})
                 tool_outputs.append({"tool_call_id": tool.id, "output": send_result})
 
-        # Submit all tool_outputs at the same time
-        self.submit_tool_outputs(tool_outputs, run_id)
-
-    def submit_tool_outputs(self, tool_outputs, run_id):
-        # Use the submit_tool_outputs_stream helper
-        with self.streaming_manager.openai_client.beta.threads.runs.submit_tool_outputs_stream(
+        self.streaming_manager.openai_client.beta.threads.runs.submit_tool_outputs(
             thread_id=self.streaming_manager.thread_manager.thread_id,
             run_id=run_id,
-            tool_outputs=tool_outputs,
-            event_handler=self,
-        ) as stream:
-            for text in stream.text_deltas:
-                print(text, end="", flush=True)
-            print()
+            tool_outputs=tool_outputs
+        )
 
 class StreamingManager:
     def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
@@ -292,12 +283,12 @@ class StreamingManager:
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
                 request="Assistant ID is not set.",
-                data=None  # Ensure data is set to None or appropriate value
+                data=None
             )
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
 
-        content = self.construct_content(event)  # Method to construct content based on event
+        content = self.construct_content(event)
         print(f"Constructed content: {content}")
 
         try:
@@ -342,29 +333,27 @@ class StreamingManager:
                 if function_call["name"] == "send_text_message":
                     parameters = function_call["parameters"]
                     if isinstance(parameters, str):
-                        parameters = json.loads(parameters)  # Ensure parameters are a dictionary
+                        parameters = json.loads(parameters)
                     print(f"Function call parameters: {parameters}")
                     zapier_response = send_text_message(parameters)
                     if zapier_response == "Success!":
-                        # Submit tool outputs to OpenAI
-                        run_id = self.thread_manager.run_id  # Ensure run_id is properly managed
+                        run_id = self.thread_manager.run_id
                         self.openai_client.beta.threads.runs.submit_tool_outputs(
                             thread_id=self.thread_manager.thread_id,
-                            run_id=run_id,
+                            run_id=run_id, 
                             tool_outputs=[{
-                                "tool_call_id": "send_text_message",
+                                "tool_call_id": function_call["id"],
                                 "output": zapier_response
                             }]
                         )
 
-                        # Re-initiate the streaming process after submitting tool outputs
                         with self.openai_client.beta.threads.runs.stream(
                             thread_id=self.thread_manager.thread_id,
                             assistant_id=self.assistant_id,
                             event_handler=self.event_handler,
                         ) as stream:
                             stream.until_done()
-                        response_text = self.response_text  # Use the stored response text
+                        response_text = self.response_text
 
                         return ApplicationEvent(
                             type=ApplicationEventType.SYNTHESIZE,
@@ -382,7 +371,7 @@ class StreamingManager:
                     request=response_text
                 )
         except Exception as e:
-            print(f"Error during streaming interaction: {str(e)[:100]}...")
+            print(f"Error during streaming interaction: {str(e)}...")
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
                 request=str(e)[:100]
@@ -410,14 +399,15 @@ def send_text_message(arguments):
     webhook_url = "https://hooks.zapier.com/hooks/catch/82343/19816978ac224264aa3eec6c8c911e10/"
     
     if isinstance(arguments, str):
-        arguments = json.loads(arguments)  # Ensure arguments are a dictionary
+        arguments = json.loads(arguments)
     
     text_to_send = arguments.get('message', '')
-    
     payload = {"text": text_to_send}
     print(f"Sending text message via Zapier with arguments: {arguments}")
+    
     response = requests.post(webhook_url, json=payload)
     print(f"Response from Zapier: {response.status_code}, {response.text}")
+    
     if response.status_code == 200:
         return "Success!"
     else:
