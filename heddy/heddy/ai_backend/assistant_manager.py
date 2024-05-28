@@ -309,7 +309,7 @@ class StreamingManager:
                 event_handler=self.event_handler,
             ) as stream:
                 stream.until_done()
-            result = self.response_text  # Use the stored response text
+            response_text = self.response_text  # Use the stored response text
 
             if not event.data:
                 print("Event data is None, initializing to empty dictionary.")
@@ -321,59 +321,57 @@ class StreamingManager:
                 raise ValueError("'required_action' is explicitly set to null in event data")
 
             # Check if the response requires a function call
-            if isinstance(result, str):
+            if isinstance(response_text, str):
                 try:
-                    result = json.loads(result)
+                    response_text = json.loads(response_text)
                 except json.JSONDecodeError:
-                    print(f"Result is not a valid JSON: {result}")
+                    print(f"Result is not a valid JSON: {response_text}")
                     return ApplicationEvent(
                         type=ApplicationEventType.ERROR,
                         request="Invalid response format",
                         data=None
                     )
 
-            if "function_call" in result:
-                # Directly call the send_text_message function
-                message = result  # Use the result as the message
-                send_result = send_text_message({"message": message})
+            if "function_call" in response_text:
+                function_call = response_text["function_call"]
+                if function_call["name"] == "send_text_message":
+                    parameters = function_call["parameters"]
+                    zapier_response = send_text_message(parameters)
+                    if zapier_response == "Success!":
+                        # Submit tool outputs to OpenAI
+                        run_id = self.thread_manager.run_id  # Ensure run_id is properly managed
+                        self.openai_client.beta.threads.runs.submit_tool_outputs(
+                            thread_id=self.thread_manager.thread_id,
+                            run_id=run_id,
+                            tool_outputs=[{
+                                "tool_call_id": "send_text_message",
+                                "output": zapier_response
+                            }]
+                        )
 
-                print(f"Result from handle_stream: {result[:100]}...")
+                        # Re-initiate the streaming process after submitting tool outputs
+                        with self.openai_client.beta.threads.runs.stream(
+                            thread_id=self.thread_manager.thread_id,
+                            assistant_id=self.assistant_id,
+                            event_handler=self.event_handler,
+                        ) as stream:
+                            stream.until_done()
+                        response_text = self.response_text  # Use the stored response text
 
-                if "Success" in send_result:
-                    # Submit tool outputs to OpenAI
-                    run_id = self.thread_manager.run_id  # Ensure run_id is properly managed
-                    self.openai_client.beta.threads.runs.submit_tool_outputs(
-                        thread_id=self.thread_manager.thread_id,
-                        run_id=run_id,
-                        tool_outputs=[{
-                            "tool_call_id": "send_text_message",
-                            "output": send_result
-                        }]
-                    )
-
-                    # Re-initiate the streaming process after submitting tool outputs
-                    with self.openai_client.beta.threads.runs.stream(
-                        thread_id=self.thread_manager.thread_id,
-                        assistant_id=self.assistant_id,
-                        event_handler=self.event_handler,
-                    ) as stream:
-                        stream.until_done()
-                    result = self.response_text  # Use the stored response text
-
-                    return ApplicationEvent(
-                        type=ApplicationEventType.SYNTHESIZE,
-                        request=result
-                    )
-                else:
-                    return ApplicationEvent(
-                        type=ApplicationEventType.ERROR,
-                        request=send_result
-                    )
+                        return ApplicationEvent(
+                            type=ApplicationEventType.SYNTHESIZE,
+                            request=response_text
+                        )
+                    else:
+                        return ApplicationEvent(
+                            type=ApplicationEventType.ERROR,
+                            request=zapier_response
+                        )
             else:
                 # Handle normal response
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
-                    request=result
+                    request=response_text
                 )
         except Exception as e:
             print(f"Error during streaming interaction: {str(e)[:100]}...")
@@ -416,4 +414,7 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
+
+
 
