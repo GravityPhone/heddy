@@ -182,28 +182,24 @@ class StreamingManager:
         else:
             raise NotImplementedError(f"{func.name=}")
 
-    def resolve_calls(self, event: ApplicationEvent):
-        data = event.data
-        action = data.required_action if data and data.required_action else None
-        if not action:
-            raise ValueError("Missing required_action in event data")
-        if action.type == "submit_tool_outputs":
-            tool_calls = action.submit_tool_outputs.tool_calls
-            results = []
-            for call in tool_calls:
-                if call.function.name == "send_text_message":
-                    print(f"Calling send_text_message with arguments: {call.function.arguments}")
-                    result = send_text_message(call.function.arguments)
-                    print(f"Result from send_text_message: {result}")
-                    results.append({"tool_call_id": call.id, "output": result})
-            self.client.beta.threads.runs.submit_tool_outputs(
-                run_id=data.id,
-                tool_outputs=results
-            )
-        elif action.type == "upload_image":
-            return self.upload_image_to_openai(event)
-        elif action.type == "snapshot":
-            return self.handle_snapshot(event)
+def resolve_calls(self, event: ApplicationEvent):
+    data = event.data
+    action = data.required_action if data and data.required_action else None
+    if not action:
+        raise ValueError("Missing required_action in event data")
+    if action.type == "submit_tool_outputs":
+        tool_calls = action.submit_tool_outputs.tool_calls
+        results = []
+        for call in tool_calls:
+            if call.function.name == "send_text_message":
+                print(f"Calling send_text_message with arguments: {call.function.arguments}")
+                result = send_text_message(call.function.arguments)
+                print(f"Result from send_text_message: {result}")
+                results.append({"tool_call_id": call.id, "output": result})
+        self.client.beta.threads.runs.submit_tool_outputs(
+            run_id=data.id,
+            tool_outputs=results
+        )
     
     def upload_image_to_openai(self, event):
         image_path = event.image_path
@@ -289,12 +285,12 @@ class StreamingManager:
                     request=zapier_result.error
                 )
         except Exception as e:
-            print(f"Error during streaming interaction: {str(e)[:100]}...")  # Truncate error details
+            print(f"Error during streaming interaction: {str(e)}")
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
                 request=str(e)[:100]  # Truncate error details
             )
-
+    
     def call_zapier_and_submit_tool_outputs(self, event: ApplicationEvent, result: str):
         # Call the Zapier function
         zapier_event = ApplicationEvent(
@@ -339,6 +335,7 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
 
 
 
