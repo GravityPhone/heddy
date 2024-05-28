@@ -184,7 +184,9 @@ class StreamingManager:
 
     def resolve_calls(self, event: ApplicationEvent):
         data = event.data
-        action = data.required_action
+        action = data.required_action if data and data.required_action else None
+        if not action:
+            raise ValueError("Missing required_action in event data")
         if action.type == "submit_tool_outputs":
             tool_calls = action.submit_tool_outputs.tool_calls
             results = []
