@@ -182,11 +182,20 @@ class EventHandler(AssistantEventHandler):
                 send_result = send_text_message({"message": message})
                 tool_outputs.append({"tool_call_id": tool.id, "output": send_result})
 
+        # Submit the tool outputs
         self.streaming_manager.openai_client.beta.threads.runs.submit_tool_outputs(
             thread_id=self.streaming_manager.thread_manager.thread_id,
             run_id=run_id,
             tool_outputs=tool_outputs
         )
+
+        # Continue the thread after submitting tool outputs
+        with self.streaming_manager.openai_client.beta.threads.runs.stream(
+            thread_id=self.streaming_manager.thread_manager.thread_id,
+            assistant_id=self.streaming_manager.assistant_id,
+            event_handler=self
+        ) as stream:
+            stream.until_done()
 
 class StreamingManager:
     def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
@@ -415,4 +424,5 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
 
