@@ -163,7 +163,8 @@ class MainController:
             print(f"Error handling Zapier request: {str(e)}")
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
-                request=str(e)
+                request=str(e),
+                data={}  # Ensure data is set to an empty dictionary or appropriate value
             )
     
     def process_result(self, event: ApplicationEvent):

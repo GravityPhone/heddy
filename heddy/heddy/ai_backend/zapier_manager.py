@@ -19,7 +19,7 @@ def send_text_message(arguments):
     if response.status_code == 200:
         return "Success!"
     else:
-        raise RuntimeError(f"Failed with {response.status_code=}")
+        return f"Failed with status code {response.status_code}"
     
 class ZapierManager:
     def handle_message(self, event: ApplicationEvent):

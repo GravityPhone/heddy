@@ -282,13 +282,13 @@ class StreamingManager:
 
             # Ensure required_action is set
             if not event.data:
+                print("Event data is None, initializing to empty dictionary.")
                 event.data = {}
-            print(f"Event data: {event.data}")  # Add this line to print the dictionary
-            if not event.data.get('required_action'):
-                if 'required_action' not in event.data:
-                    event.data['required_action'] = {"submit_tool_outputs": {"tool_calls": []}}
-                else:
-                    raise ValueError("'required_action' is explicitly set to null in event data")
+            print(f"Event data after initialization: {event.data}")
+            if 'required_action' not in event.data:
+                event.data['required_action'] = {"submit_tool_outputs": {"tool_calls": []}}
+            elif event.data['required_action'] is None:
+                raise ValueError("'required_action' is explicitly set to null in event data")
 
             # Call the Zapier function and submit the tool outputs
             zapier_result = self.call_zapier_and_submit_tool_outputs(event, result)
@@ -320,7 +320,7 @@ class StreamingManager:
             data={
                 "required_action": {
                     "submit_tool_outputs": {
-                        "tool_calls": event.data.required_action.submit_tool_outputs.tool_calls  # Use the existing tool_calls
+                        "tool_calls": event.data['required_action']['submit_tool_outputs']['tool_calls']  # Use the existing tool_calls
                     },
                     "id": event.request.get("run_id", "")  # Use the run ID from the event
                 }
@@ -356,6 +356,8 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
+
 
 
 
