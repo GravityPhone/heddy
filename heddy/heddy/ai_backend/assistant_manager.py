@@ -296,8 +296,10 @@ class StreamingManager:
 
             if "Success" in send_result:
                 # Submit tool outputs to OpenAI
+                run_id = self.thread_manager.run_id  # Ensure run_id is properly managed
                 self.openai_client.beta.threads.runs.submit_tool_outputs(
-                    run_id=self.thread_manager.run_id,
+                    thread_id=self.thread_manager.thread_id,
+                    run_id=run_id,
                     tool_outputs=[{
                         "tool_call_id": "send_text_message",
                         "output": send_result
@@ -363,4 +365,5 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
 
