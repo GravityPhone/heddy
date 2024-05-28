@@ -145,7 +145,18 @@ class MainController:
             print("Returning to LISTEN state.")
             return ApplicationEvent(ApplicationEventType.LISTEN)  # Transition back to LISTEN
         if event.type == ApplicationEventType.ZAPIER:
-            event.result = send_text_message(event.request)
+            zapier_event = ApplicationEvent(
+                type=ApplicationEventType.ZAPIER,
+                request=event.request,
+                data={
+                    "required_action": {
+                        "submit_tool_outputs": {
+                            "tool_calls": []  # Initialize with an empty list
+                        }
+                    }
+                }
+            )
+            event.result = self.resolve_calls(zapier_event)
             return event
         if event.type == ApplicationEventType.ERROR:
             print(f"Error event: {event.error[:100]}...")  # Truncate error details
