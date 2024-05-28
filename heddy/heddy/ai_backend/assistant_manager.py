@@ -186,7 +186,10 @@ class StreamingManager:
         data = event.data
         action = data.required_action if data and data.required_action else None
         if not action:
-            raise ValueError("Missing required_action in event data")
+            if 'required_action' not in data.model_fields_set:
+                raise ValueError("Missing 'required_action' key in event data")
+            else:
+                raise ValueError("'required_action' is explicitly set to null in event data")
         if action.type == "submit_tool_outputs":
             tool_calls = action.submit_tool_outputs.tool_calls
             results = []
@@ -204,6 +207,8 @@ class StreamingManager:
             return self.upload_image_to_openai(event)
         elif action.type == "snapshot":
             return self.handle_snapshot(event)
+        else:
+            raise ValueError("Unsupported action type")
     
     def upload_image_to_openai(self, event):
         image_path = event.image_path
@@ -273,6 +278,13 @@ class StreamingManager:
                 stream.until_done()
             result = self.response_text  # Use the stored response text
 
+            # Ensure required_action is set
+            if not event.data or not event.data.required_action:
+                if 'required_action' not in event.data.model_fields_set:
+                    event.data = {"required_action": {"submit_tool_outputs": {"tool_calls": []}}}
+                else:
+                    raise ValueError("'required_action' is explicitly set to null in event data")
+
             # Call the Zapier function and submit the tool outputs
             zapier_result = self.call_zapier_and_submit_tool_outputs(event, result)
 
@@ -339,6 +351,7 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
 
 
 
