@@ -31,6 +31,7 @@ class ApplicationEvent:
     result: Optional[Any] = None
     error: Optional[str] = ""
     status: ProcessingStatus = ProcessingStatus.INIT
+    data: Optional[Any] = None
 
 @dataclass
 class Message:

@@ -251,7 +251,8 @@ class StreamingManager:
             print("Assistant ID is not set.")
             return ApplicationEvent(
                 type=ApplicationEventType.ERROR,
-                request="Assistant ID is not set."
+                request="Assistant ID is not set.",
+                data=None  # Ensure data is set to None or appropriate value
             )
         if not self.thread_manager.thread_id:
             self.thread_manager.create_thread()
@@ -336,6 +337,7 @@ class StreamingManager:
 
         print(f"Constructed content: {content}")
         return content
+
 
 
 
