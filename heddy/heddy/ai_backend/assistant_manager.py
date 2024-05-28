@@ -162,6 +162,38 @@ class EventHandler(AssistantEventHandler):
                         print(f"\n{output.logs}", flush=True)
                         self.streaming_manager.response_text += output.logs  # Append the logs to the response text
 
+    @override
+    def on_event(self, event):
+        # Retrieve events that are denoted with 'requires_action'
+        # since these will have our tool_calls
+        if event.event == 'thread.run.requires_action':
+            run_id = event.data.id  # Retrieve the run ID from the event data
+            self.handle_requires_action(event.data, run_id)
+
+    def handle_requires_action(self, data, run_id):
+        tool_outputs = []
+
+        for tool in data.required_action.submit_tool_outputs.tool_calls:
+            if tool.function.name == "send_text_message":
+                message = tool.function.arguments.get("message", "")
+                send_result = send_text_message({"message": message})
+                tool_outputs.append({"tool_call_id": tool.id, "output": send_result})
+
+        # Submit all tool_outputs at the same time
+        self.submit_tool_outputs(tool_outputs, run_id)
+
+    def submit_tool_outputs(self, tool_outputs, run_id):
+        # Use the submit_tool_outputs_stream helper
+        with self.streaming_manager.openai_client.beta.threads.runs.submit_tool_outputs_stream(
+            thread_id=self.streaming_manager.thread_manager.thread_id,
+            run_id=run_id,
+            tool_outputs=tool_outputs,
+            event_handler=self,
+        ) as stream:
+            for text in stream.text_deltas:
+                print(text, end="", flush=True)
+            print()
+
 class StreamingManager:
     def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
         self.thread_manager = thread_manager
@@ -288,41 +320,49 @@ class StreamingManager:
             elif event.data['required_action'] is None:
                 raise ValueError("'required_action' is explicitly set to null in event data")
 
-            # Directly call the send_text_message function
-            message = result  # Use the result as the message
-            send_result = send_text_message({"message": message})
+            # Check if the response requires a function call
+            if "function_call" in result:
+                # Directly call the send_text_message function
+                message = result  # Use the result as the message
+                send_result = send_text_message({"message": message})
 
-            print(f"Result from handle_stream: {result[:100]}...")
+                print(f"Result from handle_stream: {result[:100]}...")
 
-            if "Success" in send_result:
-                # Submit tool outputs to OpenAI
-                run_id = self.thread_manager.run_id  # Ensure run_id is properly managed
-                self.openai_client.beta.threads.runs.submit_tool_outputs(
-                    thread_id=self.thread_manager.thread_id,
-                    run_id=run_id,
-                    tool_outputs=[{
-                        "tool_call_id": "send_text_message",
-                        "output": send_result
-                    }]
-                )
+                if "Success" in send_result:
+                    # Submit tool outputs to OpenAI
+                    run_id = self.thread_manager.run_id  # Ensure run_id is properly managed
+                    self.openai_client.beta.threads.runs.submit_tool_outputs(
+                        thread_id=self.thread_manager.thread_id,
+                        run_id=run_id,
+                        tool_outputs=[{
+                            "tool_call_id": "send_text_message",
+                            "output": send_result
+                        }]
+                    )
 
-                # Re-initiate the streaming process after submitting tool outputs
-                with self.openai_client.beta.threads.runs.stream(
-                    thread_id=self.thread_manager.thread_id,
-                    assistant_id=self.assistant_id,
-                    event_handler=self.event_handler,
-                ) as stream:
-                    stream.until_done()
-                result = self.response_text  # Use the stored response text
+                    # Re-initiate the streaming process after submitting tool outputs
+                    with self.openai_client.beta.threads.runs.stream(
+                        thread_id=self.thread_manager.thread_id,
+                        assistant_id=self.assistant_id,
+                        event_handler=self.event_handler,
+                    ) as stream:
+                        stream.until_done()
+                    result = self.response_text  # Use the stored response text
 
+                    return ApplicationEvent(
+                        type=ApplicationEventType.SYNTHESIZE,
+                        request=result
+                    )
+                else:
+                    return ApplicationEvent(
+                        type=ApplicationEventType.ERROR,
+                        request=send_result
+                    )
+            else:
+                # Handle normal response
                 return ApplicationEvent(
                     type=ApplicationEventType.SYNTHESIZE,
                     request=result
-                )
-            else:
-                return ApplicationEvent(
-                    type=ApplicationEventType.ERROR,
-                    request=send_result
                 )
         except Exception as e:
             print(f"Error during streaming interaction: {str(e)[:100]}...")
@@ -365,5 +405,4 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
-
 
