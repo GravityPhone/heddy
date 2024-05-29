@@ -307,7 +307,7 @@ class StreamingManager:
             self.set_event_handler(EventHandler(self))  # Initialize EventHandler with StreamingManager instance
             with self.openai_client.beta.threads.runs.stream(
                 thread_id=self.thread_manager.thread_id,
-                assistant_id=self.thread_manager.assistant_id,
+                assistant_id=self.assistant_id,  # Correctly access assistant_id from self
                 event_handler=self.event_handler,
             ) as stream:
                 stream.until_done()
@@ -421,4 +421,5 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
 
