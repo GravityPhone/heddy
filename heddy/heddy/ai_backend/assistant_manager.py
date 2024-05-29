@@ -183,19 +183,18 @@ class EventHandler(AssistantEventHandler):
                 tool_outputs.append({"tool_call_id": tool.id, "output": send_result})
 
         # Submit the tool outputs
-        self.streaming_manager.openai_client.beta.threads.runs.submit_tool_outputs(
+        self.submit_tool_outputs(tool_outputs, run_id)
+
+    def submit_tool_outputs(self, tool_outputs, run_id):
+        with self.streaming_manager.openai_client.beta.threads.runs.submit_tool_outputs_stream(
             thread_id=self.streaming_manager.thread_manager.thread_id,
             run_id=run_id,
-            tool_outputs=tool_outputs
-        )
-
-        # Continue the thread after submitting tool outputs
-        with self.streaming_manager.openai_client.beta.threads.runs.stream(
-            thread_id=self.streaming_manager.thread_manager.thread_id,
-            assistant_id=self.streaming_manager.assistant_id,
-            event_handler=self
+            tool_outputs=tool_outputs,
+            event_handler=self,
         ) as stream:
-            stream.until_done()
+            for text in stream.text_deltas:
+                print(text, end="", flush=True)
+            print()
 
 class StreamingManager:
     def __init__(self, thread_manager, eleven_labs_manager, assistant_id=None, openai_client=None):
@@ -308,7 +307,7 @@ class StreamingManager:
             self.set_event_handler(EventHandler(self))  # Initialize EventHandler with StreamingManager instance
             with self.openai_client.beta.threads.runs.stream(
                 thread_id=self.thread_manager.thread_id,
-                assistant_id=self.assistant_id,
+                assistant_id=self.thread_manager.assistant_id,
                 event_handler=self.event_handler,
             ) as stream:
                 stream.until_done()
@@ -350,21 +349,19 @@ class StreamingManager:
                     zapier_response = send_text_message(parameters)
                     if zapier_response == "Success!":
                         run_id = self.thread_manager.run_id
-                        self.openai_client.beta.threads.runs.submit_tool_outputs(
+                        tool_outputs = [{
+                            "tool_call_id": function_call["id"],
+                            "output": zapier_response
+                        }]
+                        with self.openai_client.beta.threads.runs.submit_tool_outputs_stream(
                             thread_id=self.thread_manager.thread_id,
-                            run_id=run_id, 
-                            tool_outputs=[{
-                                "tool_call_id": function_call["id"],
-                                "output": zapier_response
-                            }]
-                        )
-
-                        with self.openai_client.beta.threads.runs.stream(
-                            thread_id=self.thread_manager.thread_id,
-                            assistant_id=self.assistant_id,
+                            run_id=run_id,
+                            tool_outputs=tool_outputs,
                             event_handler=self.event_handler,
                         ) as stream:
-                            stream.until_done()
+                            for text in stream.text_deltas:
+                                print(text, end="", flush=True)
+                            print()
                         response_text = self.response_text
 
                         return ApplicationEvent(
@@ -424,5 +421,4 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
-
 
