@@ -146,8 +146,9 @@ class EventHandler(AssistantEventHandler):
 
     @override
     def on_text_delta(self, delta, snapshot):
-        print(delta.value, end="", flush=True)
-        self.streaming_manager.response_text += delta.value  # Access the string value
+        if delta.value:
+            print(delta.value, end="", flush=True)
+            self.streaming_manager.response_text += delta.value  # Access the string value
 
     @override
     def on_tool_call_created(self, tool_call):
@@ -447,9 +448,4 @@ def send_text_message(arguments):
 
 def event_handler_factory(streaming_manager):
     return EventHandler(streaming_manager)
-
-
-
-
-
 
