@@ -200,7 +200,7 @@ class EventHandler(AssistantEventHandler):
             thread_id=self.streaming_manager.thread_manager.thread_id,
             run_id=run_id,
             tool_outputs=tool_outputs,
-            event_handler=EventHandler(),  # Create a new EventHandler instance
+            event_handler=EventHandler(self.streaming_manager),  # Pass the streaming_manager argument
         ) as stream:
             print("Starting tool outputs stream")
             for text in stream.text_deltas:
@@ -374,7 +374,7 @@ class StreamingManager:
                             thread_id=self.thread_manager.thread_id,
                             run_id=run_id,
                             tool_outputs=tool_outputs,
-                            event_handler=EventHandler(),  # Create a new EventHandler instance
+                            event_handler=EventHandler(self),  # Pass the streaming_manager argument
                         ) as stream:
                             for text in stream.text_deltas:
                                 self.streaming_manager.response_text += text
@@ -447,6 +447,7 @@ def send_text_message(arguments):
 
 def event_handler_factory(streaming_manager):
     return EventHandler(streaming_manager)
+
 
 
 
