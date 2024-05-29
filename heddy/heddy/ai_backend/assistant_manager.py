@@ -138,11 +138,6 @@ class EventHandler(AssistantEventHandler):
         self.id = uuid.uuid4()  # Add a unique identifier
         print(f"EventHandler initialized with StreamingManager: {self.streaming_manager} and ID: {self.id}")
 
-    def reset(self):
-        self.streaming_manager.response_text = ""  # Reset the response_text attribute
-        self.streaming_manager = None
-        self.id = uuid.uuid4()  # Generate a new unique identifier
-        print(f"EventHandler reset with new ID: {self.id} and StreamingManager: {self.streaming_manager}")
 
     @override
     def on_text_created(self, text) -> None:
@@ -205,7 +200,7 @@ class EventHandler(AssistantEventHandler):
             thread_id=self.streaming_manager.thread_manager.thread_id,
             run_id=run_id,
             tool_outputs=tool_outputs,
-            event_handler=self,
+            event_handler=EventHandler(),  # Create a new EventHandler instance
         ) as stream:
             print("Starting tool outputs stream")
             for text in stream.text_deltas:
@@ -220,7 +215,7 @@ class StreamingManager:
         self.eleven_labs_manager = eleven_labs_manager
         self.assistant_id = assistant_id
         self.openai_client = openai_client or openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.event_handler = EventHandler(self)  # Initialize the EventHandler instance
+        self.event_handler = None  # Initialize the event_handler to None
         self.text = ""  # Initialize the text attribute
         self.response_text = ""  # Initialize the response_text attribute
 
@@ -379,7 +374,7 @@ class StreamingManager:
                             thread_id=self.thread_manager.thread_id,
                             run_id=run_id,
                             tool_outputs=tool_outputs,
-                            event_handler=self.event_handler,  # Use the reset EventHandler instance
+                            event_handler=EventHandler(),  # Create a new EventHandler instance
                         ) as stream:
                             for text in stream.text_deltas:
                                 self.streaming_manager.response_text += text
@@ -428,6 +423,10 @@ class StreamingManager:
         print(f"Constructed content: {content}")
         return content
 
+    def initiate_stream(self):
+        handler = event_handler_factory(self)
+        self.start_stream(handler)
+
 def send_text_message(arguments):
     webhook_url = "https://hooks.zapier.com/hooks/catch/82343/19816978ac224264aa3eec6c8c911e10/"
     
@@ -446,19 +445,8 @@ def send_text_message(arguments):
     else:
         return f"Failed with status code {response.status_code}"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+def event_handler_factory(streaming_manager):
+    return EventHandler(streaming_manager)
 
 
 
