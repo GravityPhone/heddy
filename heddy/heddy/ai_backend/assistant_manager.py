@@ -347,10 +347,10 @@ class StreamingManager:
                     response_text = json.loads(response_text)
                 except json.JSONDecodeError:
                     print(f"Result is not a valid JSON: {response_text}")
+                    # Treat response_text as plain text
                     return ApplicationEvent(
-                        type=ApplicationEventType.ERROR,
-                        request="Invalid response format",
-                        data=None
+                        type=ApplicationEventType.SYNTHESIZE,
+                        request=response_text
                     )
 
             print(f"Parsed response_text: {response_text}")
@@ -447,6 +447,7 @@ def send_text_message(arguments):
 
 def event_handler_factory(streaming_manager):
     return EventHandler(streaming_manager)
+
 
 
 
