@@ -197,6 +197,7 @@ class EventHandler(AssistantEventHandler):
 
         print(f"Submitting tool outputs: {tool_outputs}")
         self.submit_tool_outputs(tool_outputs, run_id)
+        self.event_handler = EventHandler(self.streaming_manager)  # Create a new EventHandler instance
 
     def submit_tool_outputs(self, tool_outputs, run_id):
         print(f"Preparing to submit tool outputs stream with run_id: {run_id}")
@@ -444,6 +445,7 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
 
 
 
