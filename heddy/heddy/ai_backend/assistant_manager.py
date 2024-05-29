@@ -168,9 +168,11 @@ class EventHandler(AssistantEventHandler):
         # since these will have our tool_calls
         if event.event == 'thread.run.requires_action':
             run_id = event.data.id  # Retrieve the run ID from the event data
+            print(f"Calling handle_requires_action with data: {event.data} and run_id: {run_id}")
             self.handle_requires_action(event.data, run_id)
 
     def handle_requires_action(self, data, run_id):
+        print(f"Handling requires_action with data: {data} and run_id: {run_id}")
         tool_outputs = []
 
         for tool in data.required_action.submit_tool_outputs.tool_calls:
@@ -179,19 +181,23 @@ class EventHandler(AssistantEventHandler):
                 if isinstance(arguments, str):
                     arguments = json.loads(arguments)
                 message = arguments.get("message", "")
+                print(f"Sending text message with arguments: {arguments}")
                 send_result = send_text_message({"message": message})
+                print(f"Send result: {send_result}")
                 tool_outputs.append({"tool_call_id": tool.id, "output": send_result})
 
-        # Submit the tool outputs
+        print(f"Submitting tool outputs: {tool_outputs}")
         self.submit_tool_outputs(tool_outputs, run_id)
 
     def submit_tool_outputs(self, tool_outputs, run_id):
+        print(f"Preparing to submit tool outputs stream with run_id: {run_id}")
         with self.streaming_manager.openai_client.beta.threads.runs.submit_tool_outputs_stream(
             thread_id=self.streaming_manager.thread_manager.thread_id,
             run_id=run_id,
             tool_outputs=tool_outputs,
             event_handler=self,
         ) as stream:
+            print("Starting tool outputs stream")
             for text in stream.text_deltas:
                 print(text, end="", flush=True)
             print()
@@ -289,6 +295,7 @@ class StreamingManager:
             return None
     
     def handle_streaming_interaction(self, event: ApplicationEvent) -> ApplicationEvent:
+        print("Entering try block for streaming interaction")
         if not self.assistant_id:
             print("Assistant ID is not set.")
             return ApplicationEvent(
@@ -304,13 +311,17 @@ class StreamingManager:
 
         try:
             self.response_text = ""  # Reset the response text at the beginning of the interaction
+            print("Response text reset")
             event_handler = EventHandler(self)  # Create a new EventHandler instance
+            print(f"EventHandler instance created: {event_handler}")
+            print(f"Starting new stream with EventHandler instance: {event_handler}")
             with self.openai_client.beta.threads.runs.stream(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
                 event_handler=event_handler,  # Use the new EventHandler instance
             ) as stream:
                 stream.until_done()
+            print("Stream completed")
             response_text = self.response_text  # Use the stored response text
 
             print(f"Response text: {response_text}")
@@ -421,4 +432,9 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
+
+
+
+
 
