@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from heddy.io.sound_effects_player import AudioPlayer
 from typing_extensions import override
 from openai import AssistantEventHandler
+import uuid
 
 class AssistantResultStatus(Enum):
     SUCCESS = 1
@@ -134,6 +135,14 @@ class EventHandler(AssistantEventHandler):
     def __init__(self, streaming_manager):
         super().__init__()  # Ensure the base class is properly initialized
         self.streaming_manager = streaming_manager
+        self.id = uuid.uuid4()  # Add a unique identifier
+        print(f"EventHandler initialized with StreamingManager: {self.streaming_manager} and ID: {self.id}")
+
+    def reset(self):
+        self.streaming_manager.response_text = ""  # Reset the response_text attribute
+        self.streaming_manager = None
+        self.id = uuid.uuid4()  # Generate a new unique identifier
+        print(f"EventHandler reset with new ID: {self.id} and StreamingManager: {self.streaming_manager}")
 
     @override
     def on_text_created(self, text) -> None:
@@ -199,6 +208,8 @@ class EventHandler(AssistantEventHandler):
         ) as stream:
             print("Starting tool outputs stream")
             for text in stream.text_deltas:
+                self.streaming_manager.response_text += text
+                print(f"Appending to response_text: {text}")
                 print(text, end="", flush=True)
             print()
 
@@ -208,9 +219,9 @@ class StreamingManager:
         self.eleven_labs_manager = eleven_labs_manager
         self.assistant_id = assistant_id
         self.openai_client = openai_client or openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.event_handler = None
+        self.event_handler = EventHandler(self)  # Initialize the EventHandler instance
         self.text = ""  # Initialize the text attribute
-        self.response_text = ""  # Add this attribute to store the response text
+        self.response_text = ""  # Initialize the response_text attribute
 
     def set_event_handler(self, event_handler):
         self.event_handler = event_handler
@@ -312,13 +323,12 @@ class StreamingManager:
         try:
             self.response_text = ""  # Reset the response text at the beginning of the interaction
             print("Response text reset")
-            event_handler = EventHandler(self)  # Create a new EventHandler instance
-            print(f"EventHandler instance created: {event_handler}")
-            print(f"Starting new stream with EventHandler instance: {event_handler}")
+            self.event_handler = EventHandler(self)  # Create a new EventHandler instance
+            print(f"Created new EventHandler instance with ID: {self.event_handler.id}")
             with self.openai_client.beta.threads.runs.stream(
                 thread_id=self.thread_manager.thread_id,
                 assistant_id=self.assistant_id,
-                event_handler=event_handler,  # Use the new EventHandler instance
+                event_handler=EventHandler(self),  # Create a new EventHandler instance
             ) as stream:
                 stream.until_done()
             print("Stream completed")
@@ -368,9 +378,11 @@ class StreamingManager:
                             thread_id=self.thread_manager.thread_id,
                             run_id=run_id,
                             tool_outputs=tool_outputs,
-                            event_handler=event_handler,  # Use the new EventHandler instance
+                            event_handler=self.event_handler,  # Use the reset EventHandler instance
                         ) as stream:
                             for text in stream.text_deltas:
+                                self.streaming_manager.response_text += text
+                                print(f"Appending to response_text: {text}")
                                 print(text, end="", flush=True)
                             print()
                         response_text = self.response_text
@@ -432,6 +444,16 @@ def send_text_message(arguments):
         return "Success!"
     else:
         return f"Failed with status code {response.status_code}"
+
+
+
+
+
+
+
+
+
+
 
 
 
