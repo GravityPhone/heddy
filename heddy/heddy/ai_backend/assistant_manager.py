@@ -142,13 +142,13 @@ class EventHandler(AssistantEventHandler):
     @override
     def on_text_created(self, text) -> None:
         print(f"\nassistant > ", end="", flush=True)
-        self.streaming_manager.response_text += text.value  # Access the string value
+        self.streaming_manager.response_text = text.value  # Set the initial text
 
     @override
     def on_text_delta(self, delta, snapshot):
-        if delta.value:
+        if delta.value and delta.value not in self.streaming_manager.response_text:
             print(delta.value, end="", flush=True)
-            self.streaming_manager.response_text += delta.value  # Access the string value
+            self.streaming_manager.response_text += delta.value  # Append only the new text
 
     @override
     def on_tool_call_created(self, tool_call):
@@ -205,9 +205,10 @@ class EventHandler(AssistantEventHandler):
         ) as stream:
             print("Starting tool outputs stream")
             for text in stream.text_deltas:
-                self.streaming_manager.response_text += text
-                print(f"Appending to response_text: {text}")
-                print(text, end="", flush=True)
+                if text not in self.streaming_manager.response_text:
+                    self.streaming_manager.response_text += text
+                    print(f"Appending to response_text: {text}")
+                    print(text, end="", flush=True)
             print()
 
 class StreamingManager:
@@ -290,8 +291,8 @@ class StreamingManager:
             for message in manager:
                 print(f"Received message: {message}")
                 if message['role'] == 'assistant':
-                    response_content += message['content']
-                    print(f"Appending message content: {message['content']}")
+                    response_content = message['content']  # Overwrite instead of appending
+                    print(f"Setting response_content: {message['content']}")
             if response_content:
                 print(f"Triggering SYNTHESIZE event with message: {response_content}")
                 return response_content  # Return the response content directly
@@ -329,9 +330,7 @@ class StreamingManager:
             ) as stream:
                 stream.until_done()
             print("Stream completed")
-            response_text = self.response_text  # Use the stored response text
-
-            print(f"Response text: {response_text}")
+            print(f"Response text: {self.response_text}")
 
             if not event.data:
                 print("Event data is None, initializing to empty dictionary.")
@@ -343,21 +342,21 @@ class StreamingManager:
                 raise ValueError("'required_action' is explicitly set to null in event data")
 
             # Check if the response requires a function call
-            if isinstance(response_text, str):
+            if isinstance(self.response_text, str):
                 try:
-                    response_text = json.loads(response_text)
+                    self.response_text = json.loads(self.response_text)
                 except json.JSONDecodeError:
-                    print(f"Result is not a valid JSON: {response_text}")
+                    print(f"Result is not a valid JSON: {self.response_text}")
                     # Treat response_text as plain text
                     return ApplicationEvent(
                         type=ApplicationEventType.SYNTHESIZE,
-                        request=response_text
+                        request=self.response_text
                     )
 
-            print(f"Parsed response_text: {response_text}")
+            print(f"Parsed response_text: {self.response_text}")
 
-            if "function_call" in response_text:
-                function_call = response_text["function_call"]
+            if "function_call" in self.response_text:
+                function_call = self.response_text["function_call"]
                 print(f"Function call detected: {function_call}")
                 if function_call["name"] == "send_text_message":
                     parameters = function_call["parameters"]
@@ -378,15 +377,13 @@ class StreamingManager:
                             event_handler=EventHandler(self),  # Pass the streaming_manager argument
                         ) as stream:
                             for text in stream.text_deltas:
-                                self.streaming_manager.response_text += text
+                                self.response_text += text
                                 print(f"Appending to response_text: {text}")
                                 print(text, end="", flush=True)
                             print()
-                        response_text = self.response_text
-
                         return ApplicationEvent(
                             type=ApplicationEventType.SYNTHESIZE,
-                            request=response_text
+                            request=self.response_text
                         )
                     else:
                         return ApplicationEvent(
@@ -395,10 +392,17 @@ class StreamingManager:
                         )
             else:
                 # Handle normal response
-                return ApplicationEvent(
-                    type=ApplicationEventType.SYNTHESIZE,
-                    request=response_text
-                )
+                if self.response_text:
+                    print(f"Triggering SYNTHESIZE event with message: {self.response_text}")
+                    return ApplicationEvent(
+                        type=ApplicationEventType.SYNTHESIZE,
+                        request=self.response_text
+                    )
+                else:
+                    return ApplicationEvent(
+                        type=ApplicationEventType.ERROR,
+                        request="No response received"
+                    )
         except Exception as e:
             print(f"Error during streaming interaction: {str(e)}...")
             return ApplicationEvent(
@@ -448,4 +452,5 @@ def send_text_message(arguments):
 
 def event_handler_factory(streaming_manager):
     return EventHandler(streaming_manager)
+
 
