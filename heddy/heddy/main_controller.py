@@ -56,7 +56,7 @@ class MainController:
         if event.type == ApplicationEventType.START:
             return ApplicationEvent(
                 ApplicationEventType.SYNTHESIZE,
-                request='Hello! How can I assist you today?'
+                request='Computer hat assistant initiated.  Awaiting query.'
             )
         if event.type == ApplicationEventType.SYNTHESIZE:
             synthesized_event = self.synthesizer.synthesize(event)
@@ -297,8 +297,8 @@ class MainController:
     
     # TODO: move to an interaction(?) module
     def handle_detected_word(self, word):
-        if "snapshot" in word:
-            print("Detected 'snapshot' keyword.")
+        if "analyse" in word:
+            print("Detected 'analyze' keyword.")
             self.vision_module.capture_image_async()
             self.vision_module.capture_complete.wait()  # Wait for capture to complete
             self.snapshot_taken = True

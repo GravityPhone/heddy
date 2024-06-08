@@ -5,6 +5,7 @@ import threading
 import requests
 import openai
 import time
+from heddy.io.sound_effects_player import AudioPlayer  # Ensure this import is present
 
 class VisionModule:
     def __init__(self, openai_api_key):
@@ -26,7 +27,9 @@ class VisionModule:
         self.image_path = f"/tmp/{image_file_name}"
         print("Taking picture now...")
         capture_command = f"libcamera-still -o {self.image_path} --nopreview --timeout 1 --width 1280 --height 720"
-
+        # Add this line to play the sound
+        audio_player = AudioPlayer()
+        audio_player.play_sound("tricorder.wav")
         try:
             print(f"Running command: {capture_command}")
             output = subprocess.check_output(capture_command.split(), stderr=subprocess.STDOUT)
