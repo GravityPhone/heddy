@@ -297,8 +297,8 @@ class MainController:
     
     # TODO: move to an interaction(?) module
     def handle_detected_word(self, word):
-        if "analyse" in word:
-            print("Detected 'analyze' keyword.")
+        if "snapshot" in word:
+            print("Detected 'snapshot' keyword.")
             self.vision_module.capture_image_async()
             self.vision_module.capture_complete.wait()  # Wait for capture to complete
             self.snapshot_taken = True
