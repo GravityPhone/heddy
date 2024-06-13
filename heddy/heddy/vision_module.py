@@ -26,7 +26,7 @@ class VisionModule:
         image_file_name = f"{uuid.uuid4()}.png"
         self.image_path = f"/tmp/{image_file_name}"
         print("Taking picture now...")
-        capture_command = f"libcamera-still -o {self.image_path} --nopreview --timeout 1 --width 1280 --height 720"
+        capture_command = f"libcamera-still -o {self.image_path} --nopreview --timeout 1 --width 1280 --height 720 --metering spot --ev -1"
         # Add this line to play the sound
         audio_player = AudioPlayer()
         audio_player.play_sound("tricorder.wav")
