@@ -146,9 +146,18 @@ class EventHandler(AssistantEventHandler):
 
     @override
     def on_text_delta(self, delta, snapshot):
-        if delta.value and delta.value not in self.streaming_manager.response_text:
+        if delta.value:
+            if not self.streaming_manager.response_text:
+                # If response_text is empty, append the new text as is
+                self.streaming_manager.response_text = delta.value
+            else:
+                # If response_text is not empty, check if the new text starts with the first word
+                first_word = self.streaming_manager.response_text.split()[0]
+                if delta.value.startswith(first_word):
+                    # If the new text starts with the first word, remove the duplicate first word
+                    delta.value = delta.value[len(first_word):].lstrip()
+                self.streaming_manager.response_text += delta.value
             print(delta.value, end="", flush=True)
-            self.streaming_manager.response_text += delta.value  # Append only the new text
 
     @override
     def on_tool_call_created(self, tool_call):
@@ -452,5 +461,6 @@ def send_text_message(arguments):
 
 def event_handler_factory(streaming_manager):
     return EventHandler(streaming_manager)
+
 
 
