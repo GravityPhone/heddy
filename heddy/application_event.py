@@ -15,6 +15,8 @@ class ApplicationEventType(Enum):
     TRANSCRIBE = 7
     GET_SNAPSHOT = 8
     AI_INTERACT = 9
+    AI_TOOL_RETURN = 10
+    ZAPIER = 11
 
 class ProcessingStatus(Enum):
     INIT = 0

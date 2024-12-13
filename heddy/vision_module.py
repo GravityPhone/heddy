@@ -93,3 +93,7 @@ class VisionModule:
             return description
         else:
             return "Image processing failed."
+    
+    def get_description_of_camera_view(self, transcription="What's in this image?"):
+        self.capture_image()
+        return self.describe_captured_image(transcription=transcription)
