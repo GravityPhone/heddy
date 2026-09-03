@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heddy"
+version = "0.2.0"
+description = "A hands-free voice assistant: wake word, speech to text, an LLM with tools, and spoken replies."
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["voice-assistant", "speech-recognition", "text-to-speech", "openai", "pocketsphinx"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "assemblyai>=0.30",
+    "openai>=1.66,<4",
+    "pocketsphinx>=5.0",
+    "pyaudio>=0.2.13",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+heddy = "heddy.app:main"
+
+[project.urls]
+Repository = "https://github.com/GravityPhone/heddy"
+
+[tool.setuptools.packages.find]
+include = ["heddy*"]
+
+[tool.setuptools.package-data]
+heddy = ["resources/*.kws", "resources/sounds/*.wav"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"

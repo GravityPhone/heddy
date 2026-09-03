@@ -1,31 +1,50 @@
+"""Provider-agnostic text-to-speech types and the pipeline adapter."""
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
-from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus
+from typing import Protocol
+
+from heddy.audio.pcm import PcmAudio
+from heddy.events import ApplicationEvent
+
 
 class TTSStatus(Enum):
-    SUCCESS = 1
-    ERROR = -1
+    SUCCESS = "success"
+    ERROR = "error"
 
-@dataclass
+
+@dataclass(frozen=True)
 class TTSResult:
-    # TODO: change to generic audio type so we could play different formats
     status: TTSStatus
-    audio: Optional[bytes] = None
-    error: Optional[str] = None
-    
-class TTSManager:
-    def __init__(self, synthesizer):
-        self.synthesizer = synthesizer
-    
-    def synthesize(self, event: ApplicationEvent):
-        result: TTSResult = self.synthesizer(event.request)
+    audio: PcmAudio | None = None
+    error: str | None = None
 
-        if result.status == TTSStatus.SUCCESS:
-            event.result = result.audio
-            event.status = ProcessingStatus.SUCCESS
-        else:
-            event.error = result.error
-            event.status = ProcessingStatus.ERROR
-        
-        return event
+    @classmethod
+    def ok(cls, audio: PcmAudio) -> TTSResult:
+        return cls(TTSStatus.SUCCESS, audio=audio)
+
+    @classmethod
+    def failed(cls, error: str) -> TTSResult:
+        return cls(TTSStatus.ERROR, error=error)
+
+
+class Synthesizer(Protocol):
+    """Anything that can turn text into playable PCM audio."""
+
+    def synthesize(self, text: str) -> TTSResult: ...
+
+
+class TTSManager:
+    """Adapts a :class:`Synthesizer` to ``SYNTHESIZE`` events."""
+
+    def __init__(self, synthesizer: Synthesizer) -> None:
+        self.synthesizer = synthesizer
+
+    def synthesize(self, event: ApplicationEvent) -> ApplicationEvent:
+        """``event.request`` is the text to speak; the result is :class:`PcmAudio`."""
+        result = self.synthesizer.synthesize(str(event.request))
+        if result.status is TTSStatus.SUCCESS:
+            return event.succeed(result.audio)
+        return event.fail(result.error or "Speech synthesis failed.")

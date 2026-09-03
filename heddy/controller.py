@@ -1,196 +1,227 @@
-import os
-from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus
-from heddy.io.sound_effects_player import AudioPlayer
-from heddy.speech_to_text.stt_manager import STTManager
-from heddy.text_to_speech.text_to_speach_manager import TTSManager
-from heddy.word_detector import WordDetector
-from heddy.io.audio_recorder import start_recording, stop_recording
-from heddy.speech_to_text.assemblyai_transcriber import AssemblyAITranscriber
-from heddy.ai_backend.assistant_manager import ThreadManager, StreamingManager
-from heddy.text_to_speech.eleven_labs import ElevenLabsManager
-from heddy.vision_module import VisionModule
-import openai
-from dotenv import load_dotenv
+"""The main loop: a state machine that ties the pipeline stages together.
+
+The controller knows nothing about PyAudio, OpenAI or any other provider. It
+receives the components through its constructor (see :mod:`heddy.app` for the
+wiring) and only speaks in :class:`~heddy.events.ApplicationEvent` objects,
+which keeps the whole interaction flow testable without a microphone.
+
+A typical interaction::
+
+    "computer"  -> start recording
+    "snapshot"  -> take a webcam picture (while recording)
+    "reply"     -> stop recording, transcribe, ask the assistant, speak the answer
+"""
+
+from __future__ import annotations
+
+import contextlib
+import logging
+from typing import Protocol
+
+from heddy.events import (
+    ApplicationEvent,
+    ApplicationEventType,
+    AssistantRequest,
+    ProcessingStatus,
+)
+from heddy.exceptions import HeddyError
+from heddy.resources import (
+    LISTENING_SOUND,
+    RESPOND_SOUND,
+    SNAPSHOT_SOUND,
+    START_RECORDING_SOUND,
+)
+
+log = logging.getLogger(__name__)
+
+WAKE_WORD = "computer"
+SNAPSHOT_WORD = "snapshot"
+REPLY_WORD = "reply"
+DEFAULT_GREETING = "Hello! How can I assist you today?"
+
+
+class EventHandler(Protocol):
+    def __call__(self, event: ApplicationEvent) -> ApplicationEvent: ...
+
+
+class Assistant(Protocol):
+    def handle(self, event: ApplicationEvent) -> ApplicationEvent: ...
+
+
+class Transcriber(Protocol):
+    def transcribe(self, event: ApplicationEvent) -> ApplicationEvent: ...
+
+
+class Synthesizer(Protocol):
+    def synthesize(self, event: ApplicationEvent) -> ApplicationEvent: ...
+
+
+class Player(Protocol):
+    def play(self, event: ApplicationEvent) -> ApplicationEvent: ...
+    def play_sound(self, name: str) -> None: ...
+    def close(self) -> None: ...
+
+
+class Recorder(Protocol):
+    @property
+    def is_recording(self) -> bool: ...
+    def start(self) -> None: ...
+    def stop(self) -> object: ...
+
+
+class Camera(Protocol):
+    def capture_async(self) -> None: ...
+    def attach_snapshot(self, event: ApplicationEvent) -> ApplicationEvent: ...
+
+
+class KeywordDetector(Protocol):
+    def listen(self, event: ApplicationEvent) -> ApplicationEvent: ...
+    def clear(self) -> None: ...
 
 
 class MainController:
-    # State variables
-    is_recording = False
-    picture_mode = False
-    last_thread_id = None
-    
-    # Global variable for transcription
-    transcription = ""
-    
-    # Global set to track processed message IDs
-    processed_messages = set()
-
     def __init__(
-            self, 
-            assistant,
-            transcriber,
-            synthesizer,
-            audio_player,
-            vision_module,
-            word_detector
-        ) -> None:
+        self,
+        *,
+        assistant: Assistant,
+        transcriber: Transcriber,
+        synthesizer: Synthesizer,
+        audio_player: Player,
+        recorder: Recorder,
+        camera: Camera,
+        keyword_detector: KeywordDetector,
+        greeting: str = DEFAULT_GREETING,
+    ) -> None:
         self.assistant = assistant
         self.transcriber = transcriber
         self.synthesizer = synthesizer
-        self.vision_module = vision_module
         self.audio_player = audio_player
-        self.word_detector = word_detector
-
-    def process_event(self, event: ApplicationEvent):
-        if event.type == ApplicationEventType.START:
-            return ApplicationEvent(
-                ApplicationEventType.SYNTHESIZE,
-                request='Hello! How can I assist you today?'
-            )
-        if event.type == ApplicationEventType.SYNTHESIZE:
-            return self.synthesizer.synthesize(event)
-        if event.type == ApplicationEventType.PLAY:
-            return self.audio_player.play(event)
-        if event.type == ApplicationEventType.LISTEN:
-            return self.word_detector.listen(event)
-        if event.type == ApplicationEventType.START_RECORDING:
-            self.audio_player.play_sound("startrecording.wav")  # Play start recording sound
-            self.start_recording()
-            return ApplicationEvent(ApplicationEventType.LISTEN)
-        if event.type == ApplicationEventType.USE_SNAPSHOT:
-            self.audio_player.play_sound("tricorder.wav")  # Play take a picture sound
-            self.set_picture_mode()
-            return ApplicationEvent(ApplicationEventType.LISTEN)
-        if event.type == ApplicationEventType.STOP_RECORDING:
-            self.audio_player.play_sound("respond.wav")  # Play stop recording/respond sound
-            self.stop_recording()
-            self.word_detector.clear()
-            return ApplicationEvent(
-                ApplicationEventType.TRANSCRIBE,
-                request="recorded_audio.wav"
-            )
-        if event.type == ApplicationEventType.TRANSCRIBE:
-            return self.transcriber.transcribe_audio_file(event)
-        if event.type == ApplicationEventType.GET_SNAPSHOT:
-            return self.get_snapshot(event)
-        if event.type == ApplicationEventType.AI_INTERACT:
-            return self.assistant.handle_streaming_interaction(event)
-
-    def process_result(self, event: ApplicationEvent):
-        if event.status == ProcessingStatus.ERROR:
-            raise RuntimeError(event.error)
-        if event.status == ProcessingStatus.INIT:
-            return event
-        if event.type == ApplicationEventType.SYNTHESIZE:
-            return ApplicationEvent(
-                type=ApplicationEventType.PLAY,
-                request=event.result
-            )
-        if event.type == ApplicationEventType.PLAY:
-            return ApplicationEvent(
-                type=ApplicationEventType.LISTEN,
-            )
-        if event.type == ApplicationEventType.LISTEN:
-            return self.handle_detected_word(event.result)
-        if event.type == ApplicationEventType.TRANSCRIBE:
-            print(f"Transcription result: '{event.result}'")
-            if self.picture_mode:
-                return ApplicationEvent(
-                    type=ApplicationEventType.GET_SNAPSHOT,
-                    request=event.result
-                )
-            else:
-                return ApplicationEvent(
-                type=ApplicationEventType.AI_INTERACT,
-                request=event.result
-            )
-        if event.type == ApplicationEventType.GET_SNAPSHOT:
-            print(f"Snapshot Result: '{event.result}'")
-            return ApplicationEvent(
-                type=ApplicationEventType.AI_INTERACT,
-                request=event.result
-            )
-        if event.type == ApplicationEventType.AI_INTERACT:
-            print(f"Assistant Response: '{event.result}'")
-            return ApplicationEvent(
-                type=ApplicationEventType.SYNTHESIZE,
-                request=event.result
-            )
-    
-    def get_snapshot(self, event: ApplicationEvent):
-        # TODO: move to vision module logic
-        self.picture_mode = False
-        self.vision_module.capture_image_async()
-        event.status = ProcessingStatus.SUCCESS
-        event.result = self.vision_module.describe_captured_image(event.request)
-        return event
-
-    # TODO: move to an interaction manager(?) module
-    def stop_recording(self, ):
-        stop_recording()
+        self.recorder = recorder
+        self.camera = camera
+        self.keyword_detector = keyword_detector
+        self.greeting = greeting
         self.is_recording = False
-        print("Recording stopped. Processing...")
-    
-    # TODO: move to an interaction manager(?) module
-    def start_recording(self,):
-        start_recording()
-        self.is_recording = True
-        print("Recording started...")
-    
-    # TODO: move to an interaction manager(?) module
-    def set_picture_mode(self,):
-        if self.is_recording:
-            self.picture_mode = True
-            print("Picture mode activated")
+        self.picture_mode = False
 
-    # TODO: move to an interaction(?) module
-    def handle_detected_word(self, word):
-        if "computer" in word and not self.is_recording:
+    # -- dispatch -----------------------------------------------------------------
+
+    def process_event(self, event: ApplicationEvent) -> ApplicationEvent:
+        """Run the handler for ``event``.
+
+        Returns either the same event, finished by its handler, or a brand-new
+        pending event when the stage needs no external work.
+        """
+        kind = event.type
+        if kind is ApplicationEventType.START:
+            self.audio_player.play_sound(LISTENING_SOUND)
+            return ApplicationEvent(ApplicationEventType.SYNTHESIZE, request=self.greeting)
+        if kind is ApplicationEventType.SYNTHESIZE:
+            return self.synthesizer.synthesize(event)
+        if kind is ApplicationEventType.PLAY:
+            return self.audio_player.play(event)
+        if kind is ApplicationEventType.LISTEN:
+            return self.keyword_detector.listen(event)
+        if kind is ApplicationEventType.START_RECORDING:
+            self.audio_player.play_sound(START_RECORDING_SOUND)
+            self.recorder.start()
+            self.is_recording = True
+            return ApplicationEvent(ApplicationEventType.LISTEN)
+        if kind is ApplicationEventType.USE_SNAPSHOT:
+            self.audio_player.play_sound(SNAPSHOT_SOUND)
+            self.picture_mode = True
+            self.camera.capture_async()
+            return ApplicationEvent(ApplicationEventType.LISTEN)
+        if kind is ApplicationEventType.STOP_RECORDING:
+            self.audio_player.play_sound(RESPOND_SOUND)
+            recording = self.recorder.stop()
+            self.is_recording = False
+            self.keyword_detector.clear()
+            return ApplicationEvent(ApplicationEventType.TRANSCRIBE, request=recording)
+        if kind is ApplicationEventType.TRANSCRIBE:
+            return self.transcriber.transcribe(event)
+        if kind is ApplicationEventType.GET_SNAPSHOT:
+            return self.camera.attach_snapshot(event)
+        if kind is ApplicationEventType.AI_INTERACT:
+            return self.assistant.handle(event)
+        raise ValueError(f"No handler for event type {kind}")
+
+    def process_result(self, event: ApplicationEvent) -> ApplicationEvent:
+        """Decide what happens after ``event`` has been processed."""
+        if event.status is ProcessingStatus.ERROR:
+            return self._recover(event)
+        if event.status is ProcessingStatus.INIT:
+            return event  # a fresh event produced by process_event; run it next
+
+        kind = event.type
+        if kind is ApplicationEventType.SYNTHESIZE:
+            return ApplicationEvent(ApplicationEventType.PLAY, request=event.result)
+        if kind is ApplicationEventType.PLAY:
+            return ApplicationEvent(ApplicationEventType.LISTEN)
+        if kind is ApplicationEventType.LISTEN:
+            return self.handle_keyword(str(event.result))
+        if kind is ApplicationEventType.TRANSCRIBE:
+            log.info("Transcript: %r", event.result)
+            if self.picture_mode:
+                return ApplicationEvent(ApplicationEventType.GET_SNAPSHOT, request=event.result)
+            return ApplicationEvent(
+                ApplicationEventType.AI_INTERACT, request=AssistantRequest(text=event.result)
+            )
+        if kind is ApplicationEventType.GET_SNAPSHOT:
+            self.picture_mode = False
+            return ApplicationEvent(ApplicationEventType.AI_INTERACT, request=event.result)
+        if kind is ApplicationEventType.AI_INTERACT:
+            log.info("Assistant: %r", event.result)
+            return ApplicationEvent(ApplicationEventType.SYNTHESIZE, request=event.result)
+        raise ValueError(f"No result handling for event type {kind}")
+
+    def handle_keyword(self, word: str) -> ApplicationEvent:
+        """Map a detected keyword to the next event, given the current state."""
+        word = word.lower().strip()
+        if WAKE_WORD in word and not self.is_recording:
             return ApplicationEvent(ApplicationEventType.START_RECORDING)
-        if "snapshot" in word and not self.picture_mode:
+        if SNAPSHOT_WORD in word and self.is_recording and not self.picture_mode:
             return ApplicationEvent(ApplicationEventType.USE_SNAPSHOT)
-        if "reply" in word and self.is_recording:
+        if REPLY_WORD in word and self.is_recording:
             return ApplicationEvent(ApplicationEventType.STOP_RECORDING)
         return ApplicationEvent(ApplicationEventType.LISTEN)
-    
-    def run(self, event: ApplicationEvent):
-        current_event = event
-        while current_event.type != ApplicationEventType.EXIT:
-            print(current_event.type)
-            if current_event.type == ApplicationEventType.START:
-                self.audio_player.play_sound("listening.wav")  # Play start listening sound
-            result = self.process_event(current_event)
-            current_event = self.process_result(result)
 
-def initialize():
-    load_dotenv()
-    print("System initializing...")
-    # Initialize OpenAI client ok computer send a little zapier tick please reply
-    openai_client = openai.OpenAI(
-        api_key=os.getenv("OPENAI_API_KEY")
-    ) # This line initializes openai_client with the openai library itself
+    # -- running ------------------------------------------------------------------
 
-    # Initialize modules with provided API keys
-    assemblyai_transcriber = AssemblyAITranscriber(api_key=os.getenv("ASSEMBLYAI_API_KEY"))
+    def step(self, event: ApplicationEvent) -> ApplicationEvent:
+        """Process one event and return the next one."""
+        log.debug("Event: %s", event.type.value)
+        try:
+            result = self.process_event(event)
+        except HeddyError as exc:
+            result = event.fail(str(exc))
+        return self.process_result(result)
 
-    # Adjusted to use the hardcoded Assistant ID
-    eleven_labs_manager = ElevenLabsManager(api_key=os.getenv("ELEVENLABS_API_KEY"))
-    vision_module = VisionModule(openai_api_key=os.getenv("OPENAI_API_KEY"))
+    def run(self, event: ApplicationEvent | None = None) -> None:
+        """Run the loop until an ``EXIT`` event or Ctrl+C."""
+        current = event or ApplicationEvent(ApplicationEventType.START)
+        try:
+            while current.type is not ApplicationEventType.EXIT:
+                current = self.step(current)
+        except KeyboardInterrupt:
+            log.info("Shutting down")
+        finally:
+            self.shutdown()
 
-    # Initialize ThreadManager and StreamingManager
-    thread_manager = ThreadManager(openai_client)
-    streaming_manager = StreamingManager(thread_manager, eleven_labs_manager, assistant_id="asst_3D8tACoidstqhbw5JE2Et2st")
+    def shutdown(self) -> None:
+        if self.recorder.is_recording:
+            with contextlib.suppress(HeddyError):
+                self.recorder.stop()
+        self.audio_player.close()
 
-    word_detector = WordDetector()
-    return MainController(
-        assistant=streaming_manager,
-        transcriber=STTManager(transcriber=assemblyai_transcriber),
-        vision_module=vision_module,
-        audio_player=AudioPlayer(),
-        word_detector=word_detector,
-        synthesizer=TTSManager(eleven_labs_manager)
-    )
-
-if __name__ == "__main__":
-    main = initialize()
-    main.run(ApplicationEvent(ApplicationEventType.START))
+    def _recover(self, event: ApplicationEvent) -> ApplicationEvent:
+        """Log a failed stage, drop any half-finished interaction, and listen again."""
+        log.error("%s failed: %s", event.type.value, event.error)
+        if self.is_recording:
+            try:
+                self.recorder.stop()
+            except HeddyError as exc:
+                log.error("%s", exc)
+            self.is_recording = False
+        self.picture_mode = False
+        self.keyword_detector.clear()
+        return ApplicationEvent(ApplicationEventType.LISTEN)

@@ -1,48 +1,63 @@
-import pyaudio
-import wave
-from elevenlabs import play
+"""Audio output: bundled sound effects and synthesized speech."""
 
-from heddy.application_event import ApplicationEvent, ApplicationEventType, ProcessingStatus
+from __future__ import annotations
+
+import logging
+import wave
+from collections.abc import Iterable
+
+import pyaudio
+
+from heddy.audio.pcm import PcmAudio
+from heddy.audio.quiet import suppress_stderr
+from heddy.events import ApplicationEvent
+from heddy.resources import sound_path
+
+log = logging.getLogger(__name__)
+
 
 class AudioPlayer:
-    def __init__(self):
-        """Initializes the sound effects player."""
-        self.pyaudio_instance = pyaudio.PyAudio()
+    """Plays WAV sound effects and raw PCM speech through the default output device."""
 
-    def play_sound(self, file_path):
-        """
-        Play a sound effect from the specified file path.
+    def __init__(self, chunk_frames: int = 1024) -> None:
+        self._chunk_frames = chunk_frames
+        with suppress_stderr():
+            self._pyaudio = pyaudio.PyAudio()
 
-        Args:
-        file_path (str): The path to the wave file to play.
-        """
-        # Open the wave file
-        wf = wave.open(file_path, 'rb')
+    def play_sound(self, name: str) -> None:
+        """Play one of the bundled sound effects (see :mod:`heddy.resources`)."""
+        with wave.open(str(sound_path(name)), "rb") as wav:
+            frames = iter(lambda: wav.readframes(self._chunk_frames), b"")
+            self._play(wav.getsampwidth(), wav.getnchannels(), wav.getframerate(), frames)
 
-        # Open a stream for audio playback
-        stream = self.pyaudio_instance.open(format=self.pyaudio_instance.get_format_from_width(wf.getsampwidth()),
-                                            channels=wf.getnchannels(),
-                                            rate=wf.getframerate(),
-                                            output=True)
+    def play_pcm(self, audio: PcmAudio) -> None:
+        """Play raw PCM audio, such as a synthesized reply."""
+        step = self._chunk_frames * audio.frame_size
+        chunks = (audio.data[i : i + step] for i in range(0, len(audio.data), step))
+        self._play(audio.sample_width, audio.channels, audio.sample_rate, chunks)
 
-        # Read data in chunks and play
-        data = wf.readframes(1024)
-        while data:
-            stream.write(data)
-            data = wf.readframes(1024)
+    def play(self, event: ApplicationEvent) -> ApplicationEvent:
+        """Pipeline handler for ``PLAY`` events; ``event.request`` is a :class:`PcmAudio`."""
+        try:
+            self.play_pcm(event.request)
+        except OSError as exc:
+            log.exception("Audio playback failed")
+            return event.fail(f"Audio playback failed: {exc}")
+        return event.succeed()
 
-        # Cleanup
-        stream.stop_stream()
-        stream.close()
-    
-    def play(self, event: ApplicationEvent):
-        play(event.request)
-        return ApplicationEvent(
-            type=ApplicationEventType.PLAY,
-            status=ProcessingStatus.SUCCESS
+    def _play(self, sample_width: int, channels: int, rate: int, frames: Iterable[bytes]) -> None:
+        stream = self._pyaudio.open(
+            format=self._pyaudio.get_format_from_width(sample_width),
+            channels=channels,
+            rate=rate,
+            output=True,
         )
+        try:
+            for chunk in frames:
+                stream.write(chunk)
+        finally:
+            stream.stop_stream()
+            stream.close()
 
-
-    def __del__(self):
-        """Ensure PyAudio instance is terminated upon deletion."""
-        self.pyaudio_instance.terminate()
+    def close(self) -> None:
+        self._pyaudio.terminate()

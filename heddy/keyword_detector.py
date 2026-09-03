@@ -1,64 +1,162 @@
-import os
-from pocketsphinx import LiveSpeech, get_model_path
-from heddy.application_event import ApplicationEvent, ProcessingStatus
-from heddy.resources import get_resource_dir
-from queue import Queue
-from threading import Thread
+"""Always-on keyword spotting with PocketSphinx.
+
+A background thread streams microphone audio through PocketSphinx's endpointer
+(which finds utterances) and a decoder in keyword-search mode (which finds the
+command words inside them). Detected words are queued for the controller,
+which blocks in :meth:`KeywordDetector.listen` between pipeline stages.
+
+The keywords and their detection thresholds live in ``resources/keywords.kws``.
+"""
+
+from __future__ import annotations
+
+import logging
+import queue
+import threading
+from collections.abc import Iterable, Iterator
+from pathlib import Path
+
+import pyaudio
+from pocketsphinx import Decoder, Endpointer
+
+from heddy.audio.quiet import suppress_stderr
+from heddy.events import ApplicationEvent
+from heddy.resources import KEYWORDS_FILE
+
+log = logging.getLogger(__name__)
+
+_STOPPED = None  # queue sentinel: the detection thread has died
 
 
-class WordDetector:
-    def __init__(self, kws_path=None, model_path=None,) -> None:
-        self.kws_path = kws_path or os.path.join(get_resource_dir(), "keywords.kws")
-        self.model_path = model_path or get_model_path()
-        self.queue = Queue()
-        self.thread = None
-        self.suspended = False
-    
-    def run(self,):
-        print(f"Model Path: {self.model_path}")
-        print(f"Keywords File Path: {self.kws_path}")
+class KeywordDetector:
+    def __init__(
+        self,
+        keywords_file: Path | str = KEYWORDS_FILE,
+        *,
+        sample_rate: int = 16000,
+        input_device_index: int | None = None,
+    ) -> None:
+        self.keywords_file = Path(keywords_file)
+        self.sample_rate = sample_rate
+        self.frame_bytes = Endpointer(sample_rate=sample_rate).frame_bytes
+        self._input_device_index = input_device_index
+        self._queue: queue.Queue[str | None] = queue.Queue()
+        self._thread: threading.Thread | None = None
+        self._failure: BaseException | None = None
+        self._suspended = False
 
-        speech = LiveSpeech(
-            verbose=False,  # Set to True for detailed logs from PocketSphinx
-            sampling_rate=16000,
-            buffer_size=256,
-            no_search=False,
-            full_utt=False,
-            hmm=os.path.join(self.model_path, 'en-us/en-us'),
-            lm=None,
-            kws=self.kws_path
-        )
-        print("PocketSphinx initialized successfully.")
-        print("Listening for keywords...")
+    def keywords(self) -> list[str]:
+        """The phrases listed in the keyword file."""
+        phrases = []
+        for line in self.keywords_file.read_text().splitlines():
+            phrase = line.split("/")[0].strip()
+            if phrase:
+                phrases.append(phrase)
+        return phrases
 
-        for phrase in speech:
-            detected_words = [seg[0].lower().strip() for seg in phrase.segments(detailed=True)]  # Extract words
-            print(f"Detected words: {detected_words}")  # Log for debugging
-            for word in detected_words:
-                if self.suspended:
+    # -- pipeline interface -------------------------------------------------------
+
+    def listen(self, event: ApplicationEvent) -> ApplicationEvent:
+        """Pipeline handler for ``LISTEN``: block until a keyword is heard."""
+        if self._thread is None:
+            self._start_thread()
+        self._suspended = False
+        word = self._queue.get()
+        if word is _STOPPED:
+            raise RuntimeError(f"Keyword detection stopped: {self._failure}")
+        return event.succeed(word)
+
+    def clear(self) -> None:
+        """Drop queued words and ignore new ones until the next :meth:`listen`.
+
+        Called when recording stops, so that command words inside the assistant's
+        spoken reply cannot trigger a new interaction.
+        """
+        self._suspended = True
+        while True:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                return
+
+    # -- detection ----------------------------------------------------------------
+
+    def detect(self, frames: Iterable[bytes]) -> Iterator[list[str]]:
+        """Yield the keywords found in each utterance of a 16-bit mono PCM stream.
+
+        ``frames`` must be chunks of exactly :attr:`frame_bytes` bytes; a shorter
+        chunk marks the end of the stream. This is the pure part of the detector
+        and can be driven from a file as well as a microphone.
+        """
+        endpointer = Endpointer(sample_rate=self.sample_rate)
+        decoder = Decoder(kws=str(self.keywords_file), lm=None, samprate=self.sample_rate)
+        in_utterance = False
+
+        for frame in frames:
+            final = len(frame) != endpointer.frame_bytes
+            speech = endpointer.end_stream(frame) if final else endpointer.process(frame)
+            if speech is not None:
+                if not in_utterance:
+                    decoder.start_utt()
+                    in_utterance = True
+                decoder.process_raw(speech)
+                if not endpointer.in_speech:
+                    decoder.end_utt()
+                    in_utterance = False
+                    words = self._words(decoder)
+                    if words:
+                        yield words
+            if final:
+                break
+
+        if in_utterance:
+            decoder.end_utt()
+            words = self._words(decoder)
+            if words:
+                yield words
+
+    @staticmethod
+    def _words(decoder: Decoder) -> list[str]:
+        if decoder.hyp() is None:
+            return []
+        return [segment.word.lower().strip() for segment in decoder.seg()]
+
+    # -- microphone thread --------------------------------------------------------
+
+    def _start_thread(self) -> None:
+        self._thread = threading.Thread(target=self._run, name="heddy-keywords", daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        log.info("Listening for keywords: %s", ", ".join(self.keywords()))
+        try:
+            for words in self.detect(self._microphone_frames()):
+                log.debug("Heard %s", words)
+                if self._suspended:
                     continue
-                self.queue.put(word)
-            
-        
-    def run_thread(self,):
-        self.thread = Thread(target=self.run)
-        self.thread.start()
-        
-    def listen(self, event: ApplicationEvent):
-        if self.thread is None:
-            self.run_thread()
-        self.suspended = False
-        detected_words = self.queue.get()
-        event.result = detected_words
-        event.status = ProcessingStatus.SUCCESS
-        return event
-    
-    def clear(self,):
-        # HACK: this is hacky but should work
-        self.queue = Queue()
-        self.suspended = True
-        
-        
+                for word in words:
+                    self._queue.put(word)
+        except BaseException as exc:  # let listen() report the failure on the main thread
+            log.exception("Keyword detection stopped")
+            self._failure = exc
+            self._queue.put(_STOPPED)
 
-if __name__ == "__main__":
-    WordDetector().run()
+    def _microphone_frames(self) -> Iterator[bytes]:
+        frames_per_buffer = self.frame_bytes // 2  # 16-bit samples
+        with suppress_stderr():
+            audio = pyaudio.PyAudio()
+        stream = audio.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=self.sample_rate,
+            input=True,
+            frames_per_buffer=frames_per_buffer,
+            input_device_index=self._input_device_index,
+        )
+        try:
+            while True:
+                yield stream.read(frames_per_buffer, exception_on_overflow=False)
+        finally:
+            stream.stop_stream()
+            stream.close()
+            audio.terminate()

@@ -1,95 +1,102 @@
+"""Webcam capture for the "snapshot" command.
+
+The picture is taken with ``fswebcam`` as soon as the user says the keyword, on
+a background thread, so it is usually ready by the time the question has been
+transcribed. It is then attached to the assistant request as an image.
+"""
+
+from __future__ import annotations
+
+import logging
 import subprocess
-import os
-import base64
-import uuid
+import tempfile
 import threading
-import requests
+from pathlib import Path
 
-image_description = ""
+from heddy.config import DEFAULT_CAMERA_DEVICE
+from heddy.events import ApplicationEvent, AssistantRequest
 
-def process_image(image_path):
-    global image_description
-    # Your existing code to process the image and generate the description
-    image_description = generated_description
+log = logging.getLogger(__name__)
 
-class VisionModule:
-    def __init__(self, openai_api_key):
-        self.api_key = openai_api_key
-        self.capture_complete = threading.Event()
+CAPTURE_FAILED_NOTE = "(Note: the camera snapshot failed, so no image is attached.)"
 
-    def capture_image_async(self):
-        """Initiates the image capture process in a new thread."""
-        self.capture_complete.clear()  # Reset the event for the new capture process
-        thread = threading.Thread(target=self.capture_image)
-        thread.start()
 
-    def capture_image(self):
-        """Captures an image using fswebcam and saves it as a PNG file."""
-        image_file_name = f"{uuid.uuid4()}.png"
-        self.image_path = f"/tmp/{image_file_name}"
-        print("Taking picture now...")
-        capture_command = f"fswebcam --no-banner --resolution 1280x720 --save {self.image_path} -d /dev/video0 -r 1280x720 --png 1"
+class Camera:
+    """Takes still images from a V4L2 device using ``fswebcam``."""
 
+    def __init__(
+        self,
+        device: str = DEFAULT_CAMERA_DEVICE,
+        *,
+        resolution: str = "1280x720",
+        output_path: Path | str | None = None,
+        capture_timeout: float = 30.0,
+    ) -> None:
+        self.device = device
+        self.resolution = resolution
+        default_path = Path(tempfile.gettempdir()) / "heddy_snapshot.png"
+        self.output_path = Path(output_path) if output_path else default_path
+        self._capture_timeout = capture_timeout
+        self._done = threading.Event()
+        self._done.set()
+        self._image_path: Path | None = None
+
+    def capture_async(self) -> None:
+        """Start taking a picture on a background thread."""
+        self._done.clear()
+        self._image_path = None
+        threading.Thread(target=self._capture, name="heddy-camera", daemon=True).start()
+
+    def wait_for_image(self, timeout: float | None = None) -> Path | None:
+        """Block until the last capture finished; ``None`` if it failed or timed out."""
+        finished = self._done.wait(timeout if timeout is not None else self._capture_timeout + 5)
+        if not finished:
+            log.error("Timed out waiting for the camera")
+            return None
+        return self._image_path
+
+    def attach_snapshot(self, event: ApplicationEvent) -> ApplicationEvent:
+        """Pipeline handler for ``GET_SNAPSHOT``: pair the transcript with the image.
+
+        If the capture failed the request is still sent, with a note so the
+        assistant can tell the user what happened.
+        """
+        text = str(event.request)
+        image_path = self.wait_for_image()
+        if image_path is None:
+            log.warning("No snapshot available; sending the question without an image")
+            return event.succeed(AssistantRequest(text=f"{text}\n\n{CAPTURE_FAILED_NOTE}"))
+        return event.succeed(AssistantRequest(text=text, image_path=image_path))
+
+    def _capture(self) -> None:
+        command = [
+            "fswebcam",
+            "--no-banner",
+            "--device",
+            self.device,
+            "--resolution",
+            self.resolution,
+            "--png",
+            "1",
+            "--save",
+            str(self.output_path),
+        ]
         try:
-            subprocess.check_call(capture_command.split())
-            print(f"Image captured successfully: {self.image_path}")
-            self.capture_complete.set()  # Signal that the capture has completed
-        except subprocess.CalledProcessError as e:
-            print(f"Failed to capture image: {e}")
-            self.image_path = None  # Ensure path is reset on failure
-            self.capture_complete.set()  # Signal to unblock any waiting process, even though capture failed
-
-    def encode_image_to_base64(self):
-        """Encodes the captured image to a base64 string."""
-        if self.image_path and os.path.exists(self.image_path):
-            with open(self.image_path, "rb") as image_file:
-                return base64.b64encode(image_file.read()).decode('utf-8')
-        else:
-            print("No image file found or image capture failed.")
-        return None
-
-    def get_image_description(self, transcription, base64_image):
-        """Sends the base64-encoded image along with the transcription to the OpenAI API and returns the description."""
-        if base64_image:
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}"
-            }
-
-            payload = {
-                "model": "gpt-4-vision-preview",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": transcription},  # Use transcription as the prompt
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
-                        ]
-                    }
-                ],
-                "max_tokens": 300
-            }
-
-            response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-            if response.status_code == 200:
-                try:
-                    return response.json()['choices'][0]['message']['content']
-                except KeyError:
-                    return "Description not available or wrong response format."
+            self.output_path.unlink(missing_ok=True)
+            log.info("Taking a picture with %s", self.device)
+            subprocess.run(
+                command, check=True, capture_output=True, text=True, timeout=self._capture_timeout
+            )
+            if self.output_path.is_file():
+                self._image_path = self.output_path
+                log.info("Snapshot saved to %s", self.output_path)
             else:
-                print(f"Error in OpenAI API call: {response.text}")
-        return "Failed to encode image or image capture failed."
-
-    def describe_captured_image(self, transcription="What's in this image?"):
-        """Ensures the image capture has completed, then encodes and sends it along with the transcription to the OpenAI API for a description."""
-        self.capture_complete.wait()  # Wait for the image capture to complete
-        base64_image = self.encode_image_to_base64()
-        if base64_image:
-            description = self.get_image_description(transcription, base64_image)
-            print(f"Sending image description request...")
-            # Cleanup
-            if self.image_path and os.path.exists(self.image_path):
-                os.remove(self.image_path)
-            return description
-        else:
-            return "Image processing failed."
+                log.error("fswebcam finished but produced no file")
+        except FileNotFoundError:
+            log.error("fswebcam is not installed; install it to use snapshots")
+        except subprocess.CalledProcessError as exc:
+            log.error("fswebcam failed: %s", (exc.stderr or "").strip() or exc)
+        except subprocess.TimeoutExpired:
+            log.error("fswebcam timed out after %.0f seconds", self._capture_timeout)
+        finally:
+            self._done.set()
