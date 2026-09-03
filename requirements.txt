@@ -1,7 +1,0 @@
-assemblyai
-openai
-pyaudio
-elevenlabs
-requests
-pocketsphinx
-python-dotenv
